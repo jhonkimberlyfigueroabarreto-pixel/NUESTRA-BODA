@@ -7,7 +7,7 @@ import React, { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { Calendar, ChevronDown, Sparkles } from "lucide-react";
 import { WEDDING_DATE } from "../data";
-import coverImage from "../assets/images/wedding_cover_beach_1784060805678.jpg";
+import coverImage from "../assets/images/wedding_cover_custom_couple_1784063752964.jpg";
 
 // ==========================================
 // EDITABLE CONTENT SECTION

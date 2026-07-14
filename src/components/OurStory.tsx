@@ -7,6 +7,7 @@ import React from "react";
 import { motion } from "motion/react";
 import { Heart, Calendar, Sparkles } from "lucide-react";
 import ringsStoryImage from "../assets/images/wedding_rings_story_1784056643278.jpg";
+import lakeStoryImage from "../assets/images/wedding_story_lake_couple_1784063740303.jpg";
 
 // ==========================================
 // EDITABLE CONTENT SECTION
@@ -25,7 +26,7 @@ export const TIMELINE_MILESTONES = [
     date: "Marzo de 2023",
     title: "Aventuras Compartidas",
     description: "Viajes espontáneos, retos superados de la mano y el aprendizaje constante de amarnos. En estos años construimos los cimientos de nuestro amor verdadero, convirtiéndonos en mejores amigos y confidentes eternos.",
-    imageUrl: "https://images.unsplash.com/photo-1511285560929-80b456fea0bc?auto=format&fit=crop&q=80&w=600",
+    imageUrl: lakeStoryImage,
   },
   {
     id: "milestone-3",
@@ -131,12 +132,6 @@ export default function OurStory() {
                           />
                         </div>
 
-                        {/* Date badge */}
-                        <div className="flex items-center space-x-2 text-gold-600 justify-start md:justify-end mb-2 font-sans text-xs tracking-wider uppercase font-semibold">
-                          <Calendar className="w-3.5 h-3.5" />
-                          <span>{milestone.date}</span>
-                        </div>
-
                         {/* Title & Description */}
                         <h4 className="font-serif text-xl font-medium text-zinc-900 mb-2">
                           {milestone.title}
@@ -172,12 +167,6 @@ export default function OurStory() {
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 filter brightness-[97%]"
                             referrerPolicy="no-referrer"
                           />
-                        </div>
-
-                        {/* Date badge */}
-                        <div className="flex items-center space-x-2 text-gold-600 justify-start mb-2 font-sans text-xs tracking-wider uppercase font-semibold">
-                          <Calendar className="w-3.5 h-3.5" />
-                          <span>{milestone.date}</span>
                         </div>
 
                         {/* Title & Description */}

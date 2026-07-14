@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion } from "motion/react";
 import { Camera, Upload, RefreshCw, Sparkles, Check, AlertCircle } from "lucide-react";
-import defaultCover from "../assets/images/wedding_cover_beach_1784060805678.jpg";
+import defaultCover from "../assets/images/wedding_cover_custom_couple_1784063752964.jpg";
 
 export default function CoverPhotoEditor() {
   const [previewImage, setPreviewImage] = useState<string>(defaultCover);
@@ -127,7 +127,7 @@ export default function CoverPhotoEditor() {
       localStorage.removeItem("wedding_custom_cover_image");
       window.dispatchEvent(new Event("wedding_cover_updated"));
       setPreviewImage(defaultCover);
-      setStatusMsg({ type: "success", text: "Se ha restablecido la foto de portada predeterminada de la playa." });
+      setStatusMsg({ type: "success", text: "Se ha restablecido la foto de portada predeterminada." });
     }
   };
 
@@ -213,7 +213,7 @@ export default function CoverPhotoEditor() {
               className="px-4 py-2.5 border border-zinc-800 hover:border-zinc-700 disabled:opacity-40 disabled:hover:border-zinc-800 text-zinc-400 hover:text-white text-xs tracking-wider uppercase transition-colors rounded-sm cursor-pointer flex items-center space-x-2"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              <span>Restablecer Playa</span>
+              <span>Restablecer Original</span>
             </button>
           </div>
 
@@ -258,7 +258,7 @@ export default function CoverPhotoEditor() {
             <div className="absolute top-3 left-3 px-2 py-1 bg-zinc-950/80 backdrop-blur-md border border-gold-500/30 rounded-xs z-20 flex items-center space-x-1.5">
               <Sparkles className="w-3 h-3 text-gold-400" />
               <span className="text-[9px] text-zinc-200 tracking-wider font-sans uppercase font-semibold">
-                {previewImage === defaultCover ? "Preboda Playa" : "Tu Foto Activa"}
+                {previewImage === defaultCover ? "Nuestra Portada" : "Tu Foto Activa"}
               </span>
             </div>
           </div>
