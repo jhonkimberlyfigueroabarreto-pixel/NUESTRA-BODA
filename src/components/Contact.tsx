@@ -105,14 +105,16 @@ export default function Contact() {
             Colosenses 3:14 • 1 de Agosto de 2026
           </p>
           
-          {/* Quick link to scroll to the Admin/Organizador section easily */}
+          {/* Quick link to open the Admin/Organizador modal easily */}
           <div className="mt-8 flex justify-center">
-            <a
-              href="#administrador-de-invitados"
-              className="text-[9px] tracking-widest text-zinc-400 hover:text-gold-600 transition-all uppercase font-sans flex items-center space-x-1.5 opacity-60 hover:opacity-100 border border-transparent hover:border-gold-300/30 px-3 py-1 rounded-sm"
+            <button
+              onClick={() => {
+                window.dispatchEvent(new Event("open_admin_panel"));
+              }}
+              className="text-[9px] tracking-widest text-zinc-400 hover:text-gold-600 transition-all uppercase font-sans flex items-center space-x-1.5 opacity-60 hover:opacity-100 border border-transparent hover:border-gold-300/30 px-3 py-1 rounded-sm cursor-pointer"
             >
               <span>🔒 ACCESO ORGANIZADOR</span>
-            </a>
+            </button>
           </div>
         </div>
 

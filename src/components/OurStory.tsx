@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { Heart, Calendar, Sparkles } from "lucide-react";
 import ringsStoryImage from "../assets/images/wedding_rings_story_1784056643278.jpg";
@@ -53,6 +53,32 @@ export const STORY_INTRO = {
 };
 
 export default function OurStory() {
+  const [milestones, setMilestones] = useState(TIMELINE_MILESTONES);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("wedding_our_story_milestones");
+    if (saved) {
+      try {
+        setMilestones(JSON.parse(saved));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    const handleUpdate = () => {
+      const updated = localStorage.getItem("wedding_our_story_milestones");
+      if (updated) {
+        try {
+          setMilestones(JSON.parse(updated));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    };
+    window.addEventListener("wedding_stories_updated", handleUpdate);
+    return () => window.removeEventListener("wedding_stories_updated", handleUpdate);
+  }, []);
+
   return (
     <section id="nuestra-historia" className="py-24 bg-white relative overflow-hidden">
       {/* Decorative background subtle shapes */}
@@ -90,7 +116,7 @@ export default function OurStory() {
 
           {/* Timeline Milestones Cards */}
           <div className="space-y-12 md:space-y-24">
-            {TIMELINE_MILESTONES.map((milestone, idx) => {
+            {milestones.map((milestone, idx) => {
               const isEven = idx % 2 === 0;
               
               return (

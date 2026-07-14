@@ -33,6 +33,8 @@ import { motion, AnimatePresence } from "motion/react";
 import { AdminGuest } from "../types";
 import TableAdmin from "./TableAdmin";
 import CoverPhotoEditor from "./CoverPhotoEditor";
+import { TIMELINE_MILESTONES } from "./OurStory";
+import { INITIAL_GALLERY_PHOTOS } from "./Gallery";
 
 // =========================================================================
 // DEFAULT SEED DATA FOR THE ADMINISTRATION MODULE
@@ -152,12 +154,32 @@ const INITIAL_ADMIN_GUESTS: AdminGuest[] = [
 ];
 
 export default function GuestAdmin() {
+  // Modal visibility state
+  const [isOpen, setIsOpen] = useState(false);
+
   // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
-  const [activeTab, setActiveTab] = useState<"invitados" | "mesas" | "fotos">("invitados");
+  const [activeTab, setActiveTab] = useState<"invitados" | "mesas" | "fotos" | "historia" | "galeria">("invitados");
+
+  // Listen for opening event from footer or navigation
+  useEffect(() => {
+    const handleOpen = () => {
+      setIsOpen(true);
+      document.body.style.overflow = "hidden";
+    };
+    window.addEventListener("open_admin_panel", handleOpen);
+    return () => {
+      window.removeEventListener("open_admin_panel", handleOpen);
+    };
+  }, []);
+
+  const handleClosePanel = () => {
+    setIsOpen(false);
+    document.body.style.overflow = "unset";
+  };
 
   // Guests list & CRUD States
   const [guests, setGuests] = useState<AdminGuest[]>([]);
@@ -373,8 +395,21 @@ export default function GuestAdmin() {
   const declinedCount = guests.filter(g => g.status === "No asiste").length;
   const totalAssignedSeats = guests.reduce((sum, g) => sum + (g.status === "No asiste" ? 0 : g.quota), 0);
 
+  if (!isOpen) return null;
+
   return (
-    <section id="administrador-de-invitados" className="py-24 bg-zinc-950 text-white relative overflow-hidden border-t border-gold-500/30">
+    <div className="fixed inset-0 bg-zinc-950 text-white overflow-y-auto z-50 select-text pb-24">
+      {/* Close button inside the top bar of the modal */}
+      <div className="max-w-7xl mx-auto px-6 pt-6 flex justify-end">
+        <button
+          onClick={handleClosePanel}
+          className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-gold-400 hover:text-gold-300 font-sans text-xs tracking-widest uppercase font-bold border border-gold-500/20 rounded-sm cursor-pointer flex items-center gap-2 transition-all"
+        >
+          <X className="w-4 h-4" />
+          <span>Cerrar Panel</span>
+        </button>
+      </div>
+
       {/* Golden Geometric Background Art */}
       <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-zinc-900/50 via-zinc-950 to-zinc-950 pointer-events-none -z-10" />
       <div className="absolute top-12 left-12 right-12 bottom-12 border border-gold-500/10 pointer-events-none -z-10 rounded-sm" />
@@ -518,10 +553,10 @@ export default function GuestAdmin() {
               </div>
 
               {/* TABS FOR GUEST LIST & TABLES ORGANIZER */}
-              <div className="flex border-b border-zinc-800 gap-6 mt-4 pb-0.5">
+              <div className="flex border-b border-zinc-800 gap-6 mt-4 pb-0.5 overflow-x-auto scrollbar-none">
                 <button
                   onClick={() => setActiveTab("invitados")}
-                  className={`pb-4 px-2 text-xs uppercase tracking-[0.2em] font-sans font-bold transition-all relative cursor-pointer ${
+                  className={`pb-4 px-2 text-xs uppercase tracking-[0.2em] font-sans font-bold transition-all relative cursor-pointer shrink-0 ${
                     activeTab === "invitados" ? "text-gold-400" : "text-zinc-500 hover:text-zinc-200"
                   }`}
                 >
@@ -532,7 +567,7 @@ export default function GuestAdmin() {
                 </button>
                 <button
                   onClick={() => setActiveTab("mesas")}
-                  className={`pb-4 px-2 text-xs uppercase tracking-[0.2em] font-sans font-bold transition-all relative cursor-pointer ${
+                  className={`pb-4 px-2 text-xs uppercase tracking-[0.2em] font-sans font-bold transition-all relative cursor-pointer shrink-0 ${
                     activeTab === "mesas" ? "text-gold-400" : "text-zinc-500 hover:text-zinc-200"
                   }`}
                 >
@@ -542,8 +577,30 @@ export default function GuestAdmin() {
                   )}
                 </button>
                 <button
+                  onClick={() => setActiveTab("historia")}
+                  className={`pb-4 px-2 text-xs uppercase tracking-[0.2em] font-sans font-bold transition-all relative cursor-pointer shrink-0 ${
+                    activeTab === "historia" ? "text-gold-400" : "text-zinc-500 hover:text-zinc-200"
+                  }`}
+                >
+                  <span>Historia</span>
+                  {activeTab === "historia" && (
+                    <motion.div layoutId="admin-active-tab" className="absolute bottom-0 left-0 right-0 h-[2px] bg-gold-500" />
+                  )}
+                </button>
+                <button
+                  onClick={() => setActiveTab("galeria")}
+                  className={`pb-4 px-2 text-xs uppercase tracking-[0.2em] font-sans font-bold transition-all relative cursor-pointer shrink-0 ${
+                    activeTab === "galeria" ? "text-gold-400" : "text-zinc-500 hover:text-zinc-200"
+                  }`}
+                >
+                  <span>Galería</span>
+                  {activeTab === "galeria" && (
+                    <motion.div layoutId="admin-active-tab" className="absolute bottom-0 left-0 right-0 h-[2px] bg-gold-500" />
+                  )}
+                </button>
+                <button
                   onClick={() => setActiveTab("fotos")}
-                  className={`pb-4 px-2 text-xs uppercase tracking-[0.2em] font-sans font-bold transition-all relative cursor-pointer ${
+                  className={`pb-4 px-2 text-xs uppercase tracking-[0.2em] font-sans font-bold transition-all relative cursor-pointer shrink-0 ${
                     activeTab === "fotos" ? "text-gold-400" : "text-zinc-500 hover:text-zinc-200"
                   }`}
                 >
@@ -886,6 +943,10 @@ export default function GuestAdmin() {
               </>
               ) : activeTab === "mesas" ? (
                 <TableAdmin />
+              ) : activeTab === "historia" ? (
+                <HistoriaAdmin />
+              ) : activeTab === "galeria" ? (
+                <GaleriaAdmin />
               ) : (
                 <CoverPhotoEditor />
               )}
@@ -1084,6 +1145,495 @@ export default function GuestAdmin() {
         )}
       </AnimatePresence>
 
-    </section>
+    </div>
+  );
+}
+
+// =========================================================================
+// HISTORIAADMIN COMPONENT (EDITING OUR STORY MILESTONES)
+// =========================================================================
+function HistoriaAdmin() {
+  const [stories, setStories] = useState<any[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Form states
+  const [editDate, setEditDate] = useState("");
+  const [editTitle, setEditTitle] = useState("");
+  const [editDesc, setEditDesc] = useState("");
+  const [editImg, setEditImg] = useState("");
+
+  useEffect(() => {
+    const saved = localStorage.getItem("wedding_our_story_milestones");
+    if (saved) {
+      try {
+        setStories(JSON.parse(saved));
+      } catch (e) {
+        setStories(TIMELINE_MILESTONES);
+      }
+    } else {
+      setStories(TIMELINE_MILESTONES);
+    }
+  }, []);
+
+  const startEdit = (story: any) => {
+    setEditingId(story.id);
+    setEditDate(story.date);
+    setEditTitle(story.title);
+    setEditDesc(story.description);
+    setEditImg(story.imageUrl);
+  };
+
+  const handleSave = (id: string) => {
+    const updated = stories.map(s => {
+      if (s.id === id) {
+        return {
+          ...s,
+          date: editDate,
+          title: editTitle,
+          description: editDesc,
+          imageUrl: editImg
+        };
+      }
+      return s;
+    });
+
+    setStories(updated);
+    localStorage.setItem("wedding_our_story_milestones", JSON.stringify(updated));
+    window.dispatchEvent(new Event("wedding_stories_updated"));
+    setEditingId(null);
+  };
+
+  const handleReset = () => {
+    if (window.confirm("¿Estás seguro de que deseas restablecer las historias predeterminadas?")) {
+      localStorage.removeItem("wedding_our_story_milestones");
+      setStories(TIMELINE_MILESTONES);
+      window.dispatchEvent(new Event("wedding_stories_updated"));
+      setEditingId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center bg-zinc-900/50 p-4 border border-zinc-800 rounded-sm">
+        <div>
+          <h4 className="font-serif text-lg text-gold-400">Modificar 'Conoce Nuestra Historia'</h4>
+          <p className="font-sans text-[11px] text-zinc-400 uppercase tracking-wider">
+            Personaliza los hitos cronológicos que ven tus invitados
+          </p>
+        </div>
+        <button
+          onClick={handleReset}
+          className="px-3 py-1.5 border border-zinc-800 hover:border-zinc-700 hover:text-white text-zinc-400 text-[10px] tracking-wider uppercase rounded-sm cursor-pointer"
+        >
+          Restablecer Valores
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {stories.map((story) => (
+          <div key={story.id} className="bg-zinc-900/60 border border-zinc-800 p-5 rounded-sm relative flex flex-col justify-between">
+            {editingId === story.id ? (
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase text-gold-400 font-bold block">Fecha / Período</label>
+                  <input
+                    type="text"
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase text-gold-400 font-bold block">Título del Hito</label>
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase text-gold-400 font-bold block">Descripción de la Historia</label>
+                  <textarea
+                    value={editDesc}
+                    onChange={(e) => setEditDesc(e.target.value)}
+                    rows={4}
+                    className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none resize-none"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase text-gold-400 font-bold block">URL de la Imagen</label>
+                  <input
+                    type="text"
+                    value={editImg}
+                    onChange={(e) => setEditImg(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+                  />
+                </div>
+                {editImg && (
+                  <div className="mt-2 aspect-video overflow-hidden rounded-xs border border-zinc-800 bg-zinc-950">
+                    <img src={editImg} alt="Vista previa" className="w-full h-full object-cover animate-fade-in" onError={(e) => { (e.target as any).src = "https://images.unsplash.com/photo-1515934751635-c81c6bc9a2d8?auto=format&fit=crop&q=80&w=600"; }} referrerPolicy="no-referrer" />
+                  </div>
+                )}
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    onClick={() => setEditingId(null)}
+                    className="px-3 py-1.5 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-white uppercase text-[10px] font-bold rounded-sm cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => handleSave(story.id)}
+                    className="px-4 py-1.5 bg-gold-500 hover:bg-gold-600 text-zinc-950 uppercase text-[10px] font-bold rounded-sm cursor-pointer"
+                  >
+                    Guardar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 flex flex-col h-full justify-between">
+                <div>
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="font-serif italic text-xs text-gold-400">{story.date}</span>
+                    <button
+                      onClick={() => startEdit(story)}
+                      className="text-gold-400 hover:text-gold-300 text-[10px] uppercase font-bold flex items-center space-x-1 border border-gold-500/10 hover:border-gold-500/30 px-2.5 py-1 rounded-sm cursor-pointer transition-all"
+                    >
+                      <Edit className="w-3 h-3" />
+                      <span>Editar</span>
+                    </button>
+                  </div>
+                  <h5 className="font-serif text-base text-zinc-100 font-semibold mb-2">{story.title}</h5>
+                  <p className="font-sans text-xs text-zinc-400 leading-relaxed line-clamp-3 mb-4">{story.description}</p>
+                </div>
+                
+                <div className="aspect-video w-full overflow-hidden rounded-xs border border-zinc-800 mt-2 bg-zinc-950">
+                  <img src={story.imageUrl} alt={story.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
+// GALERIAADMIN COMPONENT (EDITING MEMORIES GALLERY IMAGES)
+// =========================================================================
+function GaleriaAdmin() {
+  const [photos, setPhotos] = useState<any[]>([]);
+  const [isAdding, setIsAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Form states (Add/Edit)
+  const [photoUrl, setPhotoUrl] = useState("");
+  const [photoCaption, setPhotoCaption] = useState("");
+  const [photoAuthor, setPhotoAuthor] = useState("Kimberly & Jhon");
+  const [photoTimestamp, setPhotoTimestamp] = useState("Julio de 2026");
+  const [photoCategory, setPhotoCategory] = useState("preboda");
+
+  useEffect(() => {
+    const saved = localStorage.getItem("wedding_gallery_photos");
+    if (saved) {
+      try {
+        setPhotos(JSON.parse(saved));
+      } catch (e) {
+        setPhotos(INITIAL_GALLERY_PHOTOS);
+      }
+    } else {
+      setPhotos(INITIAL_GALLERY_PHOTOS);
+    }
+  }, []);
+
+  const handleAddPhoto = () => {
+    if (!photoUrl || !photoCaption) {
+      alert("Por favor rellena la URL de la imagen y la frase.");
+      return;
+    }
+
+    const newPhoto = {
+      id: "photo-" + Date.now(),
+      url: photoUrl,
+      caption: photoCaption,
+      author: photoAuthor,
+      timestamp: photoTimestamp,
+      category: photoCategory,
+      likes: 0
+    };
+
+    const updated = [newPhoto, ...photos];
+    setPhotos(updated);
+    localStorage.setItem("wedding_gallery_photos", JSON.stringify(updated));
+    window.dispatchEvent(new Event("wedding_gallery_updated"));
+
+    // Reset fields
+    setPhotoUrl("");
+    setPhotoCaption("");
+    setPhotoAuthor("Kimberly & Jhon");
+    setPhotoTimestamp("Julio de 2026");
+    setIsAdding(false);
+  };
+
+  const startEdit = (photo: any) => {
+    setEditingId(photo.id);
+    setPhotoUrl(photo.url);
+    setPhotoCaption(photo.caption);
+    setPhotoAuthor(photo.author);
+    setPhotoTimestamp(photo.timestamp);
+    setPhotoCategory(photo.category);
+  };
+
+  const handleSaveEdit = (id: string) => {
+    const updated = photos.map(p => {
+      if (p.id === id) {
+        return {
+          ...p,
+          url: photoUrl,
+          caption: photoCaption,
+          author: photoAuthor,
+          timestamp: photoTimestamp,
+          category: photoCategory
+        };
+      }
+      return p;
+    });
+
+    setPhotos(updated);
+    localStorage.setItem("wedding_gallery_photos", JSON.stringify(updated));
+    window.dispatchEvent(new Event("wedding_gallery_updated"));
+    setEditingId(null);
+  };
+
+  const handleDelete = (id: string) => {
+    if (window.confirm("¿Estás seguro de que deseas eliminar esta fotografía de la galería del recuerdo?")) {
+      const updated = photos.filter(p => p.id !== id);
+      setPhotos(updated);
+      localStorage.setItem("wedding_gallery_photos", JSON.stringify(updated));
+      window.dispatchEvent(new Event("wedding_gallery_updated"));
+    }
+  };
+
+  const handleReset = () => {
+    if (window.confirm("¿Estás seguro de que deseas restablecer las fotos predeterminadas de la galería?")) {
+      localStorage.removeItem("wedding_gallery_photos");
+      setPhotos(INITIAL_GALLERY_PHOTOS);
+      window.dispatchEvent(new Event("wedding_gallery_updated"));
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-zinc-900/50 p-4 border border-zinc-800 rounded-sm gap-4">
+        <div>
+          <h4 className="font-serif text-lg text-gold-400">Galería del Recuerdo</h4>
+          <p className="font-sans text-[11px] text-zinc-400 uppercase tracking-wider">
+            Sube o gestiona las fotografías que tus invitados disfrutarán en el carrusel
+          </p>
+        </div>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <button
+            onClick={() => setIsAdding(!isAdding)}
+            className="flex-1 sm:flex-none flex items-center justify-center space-x-2 px-4 py-2 bg-gold-500 hover:bg-gold-600 text-zinc-950 text-[10px] tracking-wider uppercase font-bold rounded-sm cursor-pointer transition-all"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>{isAdding ? "Ocultar Formulario" : "Agregar Foto"}</span>
+          </button>
+          <button
+            onClick={handleReset}
+            className="flex-1 sm:flex-none px-3 py-2 border border-zinc-800 hover:border-zinc-700 hover:text-white text-zinc-400 text-[10px] tracking-wider uppercase rounded-sm cursor-pointer"
+          >
+            Restablecer
+          </button>
+        </div>
+      </div>
+
+      {isAdding && (
+        <div className="bg-zinc-900 p-6 border border-gold-500/30 rounded-sm space-y-4 max-w-xl">
+          <h5 className="font-serif text-base text-zinc-100 font-semibold border-b border-zinc-800 pb-2 flex items-center gap-2">
+            <Camera className="w-4 h-4 text-gold-500" />
+            <span>Agregar Nueva Fotografía a la Galería</span>
+          </h5>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase text-zinc-400 font-bold block">URL de la Imagen</label>
+              <input
+                type="text"
+                placeholder="https://images.unsplash.com/..."
+                value={photoUrl}
+                onChange={(e) => setPhotoUrl(e.target.value)}
+                className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase text-zinc-400 font-bold block">Frase o Pie de Foto</label>
+              <input
+                type="text"
+                placeholder="Amándonos en la playa..."
+                value={photoCaption}
+                onChange={(e) => setPhotoCaption(e.target.value)}
+                className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase text-zinc-400 font-bold block">Autor (Por quién)</label>
+              <input
+                type="text"
+                value={photoAuthor}
+                onChange={(e) => setPhotoAuthor(e.target.value)}
+                className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase text-zinc-400 font-bold block">Fecha o Época</label>
+              <input
+                type="text"
+                value={photoTimestamp}
+                onChange={(e) => setPhotoTimestamp(e.target.value)}
+                className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+              />
+            </div>
+            <div className="space-y-1 sm:col-span-2">
+              <label className="text-[10px] uppercase text-zinc-400 font-bold block">Categoría</label>
+              <select
+                value={photoCategory}
+                onChange={(e) => setPhotoCategory(e.target.value)}
+                className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+              >
+                <option value="preboda">Sesión Preboda</option>
+                <option value="detalles">Anillos & Detalles</option>
+                <option value="momentos">Nuestros Momentos</option>
+              </select>
+            </div>
+          </div>
+          {photoUrl && (
+            <div className="mt-2 aspect-video overflow-hidden rounded-xs border border-zinc-800 bg-zinc-950 max-w-sm">
+              <img src={photoUrl} alt="Vista previa" className="w-full h-full object-cover" onError={(e) => { (e.target as any).src = "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&q=80&w=600"; }} referrerPolicy="no-referrer" />
+            </div>
+          )}
+          <div className="flex justify-end gap-2 pt-2 border-t border-zinc-800">
+            <button
+              onClick={() => setIsAdding(false)}
+              className="px-3 py-1.5 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-white uppercase text-[10px] font-bold rounded-sm cursor-pointer"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleAddPhoto}
+              className="px-4 py-1.5 bg-gold-500 hover:bg-gold-600 text-zinc-950 uppercase text-[10px] font-bold rounded-sm cursor-pointer"
+            >
+              Agregar Fotografía
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+        {photos.map((photo) => (
+          <div key={photo.id} className="bg-zinc-900/60 border border-zinc-800 p-4 rounded-sm flex flex-col justify-between">
+            {editingId === photo.id ? (
+              <div className="space-y-3 text-left">
+                <div className="space-y-1">
+                  <label className="text-[9px] uppercase text-gold-400 font-bold block">URL de la Imagen</label>
+                  <input
+                    type="text"
+                    value={photoUrl}
+                    onChange={(e) => setPhotoUrl(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] uppercase text-gold-400 font-bold block">Frase o Pie</label>
+                  <input
+                    type="text"
+                    value={photoCaption}
+                    onChange={(e) => setPhotoCaption(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] uppercase text-gold-400 font-bold block">Por quién</label>
+                  <input
+                    type="text"
+                    value={photoAuthor}
+                    onChange={(e) => setPhotoAuthor(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] uppercase text-gold-400 font-bold block">Fecha o Época</label>
+                  <input
+                    type="text"
+                    value={photoTimestamp}
+                    onChange={(e) => setPhotoTimestamp(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] uppercase text-gold-400 font-bold block">Categoría</label>
+                  <select
+                    value={photoCategory}
+                    onChange={(e) => setPhotoCategory(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+                  >
+                    <option value="preboda">Sesión Preboda</option>
+                    <option value="detalles">Anillos & Detalles</option>
+                    <option value="momentos">Nuestros Momentos</option>
+                  </select>
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    onClick={() => setEditingId(null)}
+                    className="px-2.5 py-1.5 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-white uppercase text-[9px] font-bold rounded-sm cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => handleSaveEdit(photo.id)}
+                    className="px-3 py-1.5 bg-gold-500 hover:bg-gold-600 text-zinc-950 uppercase text-[9px] font-bold rounded-sm cursor-pointer"
+                  >
+                    Guardar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3 flex flex-col h-full justify-between">
+                <div>
+                  <div className="aspect-video w-full overflow-hidden rounded-xs border border-zinc-800 bg-zinc-950">
+                    <img src={photo.url} alt={photo.caption} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  </div>
+                  <p className="font-serif italic text-xs text-zinc-200 font-light mt-3 leading-relaxed">&ldquo;{photo.caption}&rdquo;</p>
+                  <div className="flex justify-between items-center mt-2.5 text-[9px] uppercase tracking-wider text-zinc-500 font-medium">
+                    <span>Por {photo.author}</span>
+                    <span>{photo.timestamp}</span>
+                  </div>
+                  <span className="inline-block mt-2 px-2 py-0.5 border border-zinc-800 text-zinc-500 text-[8px] uppercase tracking-widest font-bold rounded-full">
+                    {photo.category === "preboda" ? "Sesión Preboda" : photo.category === "detalles" ? "Anillos & Detalles" : "Nuestros Momentos"}
+                  </span>
+                </div>
+
+                <div className="flex gap-2 justify-end border-t border-zinc-800 pt-3 mt-3">
+                  <button
+                    onClick={() => startEdit(photo)}
+                    className="flex items-center space-x-1 text-gold-400 hover:text-gold-300 text-[10px] uppercase font-bold border border-gold-500/10 hover:border-gold-500/30 px-2.5 py-1 rounded-sm cursor-pointer transition-all"
+                  >
+                    <Edit className="w-3 h-3" />
+                    <span>Editar</span>
+                  </button>
+                  <button
+                    onClick={() => handleDelete(photo.id)}
+                    className="flex items-center space-x-1 text-rose-500 hover:text-rose-400 text-[10px] uppercase font-bold border border-rose-500/10 hover:border-rose-500/30 px-2.5 py-1 rounded-sm cursor-pointer transition-all"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>Eliminar</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

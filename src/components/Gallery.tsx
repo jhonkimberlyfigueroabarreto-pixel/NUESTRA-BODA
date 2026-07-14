@@ -133,14 +133,40 @@ export default function Gallery() {
   const [activePhotoIndex, setActivePhotoIndex] = useState<number | null>(null);
   const [likesState, setLikesState] = useState<{ [id: string]: number }>({});
   const [loadedImages, setLoadedImages] = useState<{ [id: string]: boolean }>({});
+  const [photos, setPhotos] = useState<GalleryPhoto[]>(INITIAL_GALLERY_PHOTOS);
 
   // Touch Swipe state variables for mobile support
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [touchStartY, setTouchStartY] = useState<number | null>(null);
 
+  // Load photos from localStorage if present
+  useEffect(() => {
+    const savedPhotos = localStorage.getItem("wedding_gallery_photos");
+    if (savedPhotos) {
+      try {
+        setPhotos(JSON.parse(savedPhotos));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    const handleUpdate = () => {
+      const updated = localStorage.getItem("wedding_gallery_photos");
+      if (updated) {
+        try {
+          setPhotos(JSON.parse(updated));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    };
+    window.addEventListener("wedding_gallery_updated", handleUpdate);
+    return () => window.removeEventListener("wedding_gallery_updated", handleUpdate);
+  }, []);
+
   const filteredPhotos = filter === "todos"
-    ? INITIAL_GALLERY_PHOTOS
-    : INITIAL_GALLERY_PHOTOS.filter(photo => photo.category === filter);
+    ? photos
+    : photos.filter(photo => photo.category === filter);
 
   // Manage likes internally (with local storage safety to keep it persistent)
   useEffect(() => {
@@ -158,7 +184,7 @@ export default function Gallery() {
     e.stopPropagation();
     const currentLikes = likesState[id] !== undefined 
       ? likesState[id] 
-      : (INITIAL_GALLERY_PHOTOS.find(p => p.id === id)?.likes || 0);
+      : (photos.find(p => p.id === id)?.likes || 0);
     
     const updated = {
       ...likesState,
@@ -176,14 +202,15 @@ export default function Gallery() {
   const handlePrevPhoto = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     if (activePhotoIndex === null) return;
-    const currentPhoto = INITIAL_GALLERY_PHOTOS[activePhotoIndex];
+    const currentPhoto = photos[activePhotoIndex];
+    if (!currentPhoto) return;
     const currentIndexInFiltered = filteredPhotos.findIndex(p => p.id === currentPhoto.id);
     
     const prevFilteredIndex = currentIndexInFiltered === 0 
       ? filteredPhotos.length - 1 
       : currentIndexInFiltered - 1;
       
-    const prevPhotoGlobalIndex = INITIAL_GALLERY_PHOTOS.findIndex(
+    const prevPhotoGlobalIndex = photos.findIndex(
       p => p.id === filteredPhotos[prevFilteredIndex].id
     );
     setActivePhotoIndex(prevPhotoGlobalIndex);
@@ -192,14 +219,15 @@ export default function Gallery() {
   const handleNextPhoto = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     if (activePhotoIndex === null) return;
-    const currentPhoto = INITIAL_GALLERY_PHOTOS[activePhotoIndex];
+    const currentPhoto = photos[activePhotoIndex];
+    if (!currentPhoto) return;
     const currentIndexInFiltered = filteredPhotos.findIndex(p => p.id === currentPhoto.id);
     
     const nextFilteredIndex = currentIndexInFiltered === filteredPhotos.length - 1 
       ? 0 
       : currentIndexInFiltered + 1;
       
-    const nextPhotoGlobalIndex = INITIAL_GALLERY_PHOTOS.findIndex(
+    const nextPhotoGlobalIndex = photos.findIndex(
       p => p.id === filteredPhotos[nextFilteredIndex].id
     );
     setActivePhotoIndex(nextPhotoGlobalIndex);
@@ -298,7 +326,7 @@ export default function Gallery() {
         <div className="columns-1 sm:columns-2 lg:columns-3 gap-6 space-y-6 [column-fill:_balance]">
           <AnimatePresence mode="popLayout">
             {filteredPhotos.map((photo) => {
-              const globalIndex = INITIAL_GALLERY_PHOTOS.findIndex(p => p.id === photo.id);
+              const globalIndex = photos.findIndex(p => p.id === photo.id);
               const isLoaded = loadedImages[photo.id];
 
               return (
@@ -402,7 +430,7 @@ export default function Gallery() {
             {/* Top Bar Details */}
             <div className="flex justify-between items-center py-3 px-6 z-10 w-full max-w-7xl mx-auto" onClick={(e) => e.stopPropagation()}>
               <span className="font-sans text-[10px] tracking-widest text-gold-400 uppercase font-semibold">
-                Fotografía {activePhotoIndex + 1} de {INITIAL_GALLERY_PHOTOS.length}
+                Fotografía {activePhotoIndex + 1} de {photos.length}
               </span>
               
               <button
@@ -437,8 +465,8 @@ export default function Gallery() {
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={{ duration: 0.3 }}
-                  src={INITIAL_GALLERY_PHOTOS[activePhotoIndex].url}
-                  alt={INITIAL_GALLERY_PHOTOS[activePhotoIndex].caption}
+                  src={photos[activePhotoIndex]?.url}
+                  alt={photos[activePhotoIndex]?.caption}
                   className="max-w-full max-h-[70vh] object-contain rounded-xs select-none border border-zinc-800/30 shadow-2xl"
                   referrerPolicy="no-referrer"
                 />
@@ -465,13 +493,13 @@ export default function Gallery() {
               onClick={(e) => e.stopPropagation()}
             >
               <p className="font-serif text-base sm:text-lg text-zinc-200 font-light tracking-wide mb-2.5">
-                &ldquo;{INITIAL_GALLERY_PHOTOS[activePhotoIndex].caption}&rdquo;
+                &ldquo;{photos[activePhotoIndex]?.caption}&rdquo;
               </p>
               
               <div className="flex justify-center items-center space-x-2 text-[10px] tracking-widest uppercase font-medium">
-                <span className="text-gold-400">Por {INITIAL_GALLERY_PHOTOS[activePhotoIndex].author}</span>
+                <span className="text-gold-400">Por {photos[activePhotoIndex]?.author}</span>
                 <span className="text-zinc-600">•</span>
-                <span className="text-zinc-400">{INITIAL_GALLERY_PHOTOS[activePhotoIndex].timestamp}</span>
+                <span className="text-zinc-400">{photos[activePhotoIndex]?.timestamp}</span>
               </div>
             </div>
           </motion.div>
