@@ -13,6 +13,8 @@ export interface RSVP {
   songRequest?: string;
   message?: string;
   timestamp: string;
+  code?: string;
+  wantsReminder?: boolean;
 }
 
 export interface Table {
@@ -59,5 +61,7 @@ export interface AdminGuest {
   tableName: string; // e.g., "Mesa 1 - Imperial de Honor"
   status: "Pendiente" | "Confirmado" | "No asiste";
   notes?: string;
+  code?: string;
+  wantsReminder?: boolean;
 }
 

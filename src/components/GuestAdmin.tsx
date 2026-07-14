@@ -43,7 +43,10 @@ import {
   Star,
   Smile,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Copy,
+  ExternalLink,
+  MessageSquare
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { AdminGuest, ItineraryItem } from "../types";
@@ -52,6 +55,22 @@ import CoverPhotoEditor from "./CoverPhotoEditor";
 import { TIMELINE_MILESTONES } from "./OurStory";
 import { INITIAL_GALLERY_PHOTOS } from "./Gallery";
 import { GIFT_REGISTRY_CHANNELS, ITINERARY_DATA } from "../data";
+
+function generateUniqueGuestCode(existingGuests: AdminGuest[]): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let attempts = 0;
+  while (attempts < 100) {
+    let code = "";
+    for (let i = 0; i < 6; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    if (!existingGuests.some(g => g.code === code)) {
+      return code;
+    }
+    attempts++;
+  }
+  return "G" + Math.random().toString(36).substring(2, 8).toUpperCase();
+}
 
 // =========================================================================
 // DEFAULT SEED DATA FOR THE ADMINISTRATION MODULE
@@ -203,6 +222,7 @@ export default function GuestAdmin() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("todos");
   const [tableFilter, setTableFilter] = useState<string>("todos");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<"firstName" | "lastName" | "quota" | "tableName" | "status">("firstName");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
@@ -233,14 +253,41 @@ export default function GuestAdmin() {
     const savedGuests = localStorage.getItem("wedding_admin_guests");
     if (savedGuests) {
       try {
-        setGuests(JSON.parse(savedGuests));
+        const parsed = JSON.parse(savedGuests);
+        let updated = false;
+        const checkedGuests = parsed.map((g: AdminGuest) => {
+          if (!g.code) {
+            g.code = generateUniqueGuestCode(parsed);
+            updated = true;
+          }
+          return g;
+        });
+        if (updated) {
+          localStorage.setItem("wedding_admin_guests", JSON.stringify(checkedGuests));
+        }
+        setGuests(checkedGuests);
       } catch (e) {
         console.error("Error parsing guests database, resetting...", e);
         setGuests(INITIAL_ADMIN_GUESTS);
       }
     } else {
-      setGuests(INITIAL_ADMIN_GUESTS);
-      localStorage.setItem("wedding_admin_guests", JSON.stringify(INITIAL_ADMIN_GUESTS));
+      const seeded = INITIAL_ADMIN_GUESTS.map((g, idx, arr) => {
+        const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+        let code = "";
+        do {
+          code = "";
+          for (let i = 0; i < 6; i++) {
+            code += chars.charAt(Math.floor(Math.random() * chars.length));
+          }
+        } while (arr.slice(0, idx).some(ex => (ex as any).code === code));
+        
+        return {
+          ...g,
+          code: code
+        };
+      });
+      setGuests(seeded);
+      localStorage.setItem("wedding_admin_guests", JSON.stringify(seeded));
     }
   }, []);
 
@@ -300,6 +347,7 @@ export default function GuestAdmin() {
             tableName: formTableName,
             status: formStatus,
             notes: formNotes.trim() || undefined,
+            code: g.code || generateUniqueGuestCode(guests),
           };
         }
         return g;
@@ -317,6 +365,7 @@ export default function GuestAdmin() {
         tableName: formTableName,
         status: formStatus,
         notes: formNotes.trim() || undefined,
+        code: generateUniqueGuestCode(guests),
       };
       saveGuestsToStorage([newGuest, ...guests]);
     }
@@ -361,6 +410,27 @@ export default function GuestAdmin() {
       const filtered = guests.filter(g => g.id !== id);
       saveGuestsToStorage(filtered);
     }
+  };
+
+  const getGuestLink = (guestCode: string) => {
+    return `${window.location.origin}${window.location.pathname}?invitado=${guestCode}#confirmar-asistencia`;
+  };
+
+  const handleCopyLink = (guest: AdminGuest) => {
+    const link = getGuestLink(guest.code || "");
+    navigator.clipboard.writeText(link).then(() => {
+      setCopiedId(guest.id);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  };
+
+  const handleShareWhatsApp = (guest: AdminGuest) => {
+    const link = getGuestLink(guest.code || "");
+    const text = `¡Hola ${guest.firstName}! 💕 Te invitamos cordialmente a nuestra boda. Aquí tienes tu enlace personalizado para confirmar tu asistencia (tienes ${guest.quota} ${guest.quota === 1 ? 'cupo asignado' : 'cupos asignados'}): ${link}`;
+    const encodedText = encodeURIComponent(text);
+    const cleanPhone = guest.phone ? guest.phone.replace(/[^0-9]/g, '') : '';
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedText}`;
+    window.open(whatsappUrl, "_blank");
   };
 
   // Sort and Filter logic
@@ -792,6 +862,7 @@ export default function GuestAdmin() {
                             <ArrowUpDown className="w-3 h-3" />
                           </div>
                         </th>
+                        <th className="p-4">Enlace Único (WhatsApp)</th>
                         <th className="p-4">Notas de Control</th>
                         <th className="p-4 text-center">Acciones</th>
                       </tr>
@@ -867,6 +938,36 @@ export default function GuestAdmin() {
                                   </>
                                 )}
                               </span>
+                            </td>
+
+                            <td className="p-4 text-left">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono text-[10px] bg-zinc-950 px-2 py-1 rounded-sm border border-zinc-800 text-gold-400 font-bold select-all" title="Código de Invitado">
+                                  {guest.code}
+                                </span>
+                                <button
+                                  onClick={() => handleCopyLink(guest)}
+                                  className={`p-1.5 border rounded-xs transition-all flex items-center justify-center cursor-pointer ${
+                                    copiedId === guest.id
+                                      ? "bg-emerald-950/50 border-emerald-500 text-emerald-400"
+                                      : "bg-zinc-950 hover:bg-zinc-800 border-zinc-800 text-zinc-400 hover:text-white"
+                                  }`}
+                                  title="Copiar Enlace Único"
+                                >
+                                  {copiedId === guest.id ? (
+                                    <CheckCircle className="w-3.5 h-3.5 stroke-[2.5]" />
+                                  ) : (
+                                    <Copy className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
+                                <button
+                                  onClick={() => handleShareWhatsApp(guest)}
+                                  className="p-1.5 bg-zinc-950 hover:bg-emerald-950/40 border border-zinc-800 hover:border-emerald-800 text-emerald-400 transition-all rounded-xs flex items-center justify-center cursor-pointer"
+                                  title="Enviar por WhatsApp"
+                                >
+                                  <MessageSquare className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </td>
 
                             <td className="p-4 max-w-[200px] truncate" title={guest.notes}>
@@ -950,6 +1051,38 @@ export default function GuestAdmin() {
                           {guest.phone && <div className="flex items-center space-x-1"><strong>Tel:</strong> <span>{guest.phone}</span></div>}
                           {guest.email && <div className="flex items-center space-x-1"><strong>Email:</strong> <span className="truncate">{guest.email}</span></div>}
                           {guest.notes && <div className="text-zinc-500 italic mt-1">&ldquo;{guest.notes}&rdquo;</div>}
+                        </div>
+
+                        {/* Invitation Link on Mobile */}
+                        <div className="flex items-center justify-between bg-zinc-950 p-2 rounded-sm border border-zinc-850">
+                          <span className="text-zinc-500 font-bold uppercase text-[9px] tracking-wider">Enlace Personalizado:</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono text-[10px] text-gold-400 font-bold bg-zinc-900 px-2 py-0.5 rounded-sm border border-zinc-800">
+                              {guest.code}
+                            </span>
+                            <button
+                              onClick={() => handleCopyLink(guest)}
+                              className={`p-1 border rounded-xs transition-all flex items-center justify-center cursor-pointer ${
+                                copiedId === guest.id
+                                  ? "bg-emerald-950/50 border-emerald-500 text-emerald-400"
+                                  : "bg-zinc-900 hover:bg-zinc-850 border-zinc-800 text-zinc-400 hover:text-white"
+                              }`}
+                              title="Copiar Enlace"
+                            >
+                              {copiedId === guest.id ? (
+                                <CheckCircle className="w-3 h-3 stroke-[2.5]" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                            <button
+                              onClick={() => handleShareWhatsApp(guest)}
+                              className="p-1 bg-zinc-900 hover:bg-emerald-950/40 border border-zinc-800 hover:border-emerald-800 text-emerald-400 transition-all rounded-xs flex items-center justify-center cursor-pointer"
+                              title="WhatsApp"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
 
                         {/* Card Actions */}
@@ -1403,6 +1536,78 @@ function GaleriaAdmin() {
   const [photoTimestamp, setPhotoTimestamp] = useState("Julio de 2026");
   const [photoCategory, setPhotoCategory] = useState("preboda");
 
+  // Upload states
+  const [isUploading, setIsUploading] = useState(false);
+  const [isUploadingEdit, setIsUploadingEdit] = useState(false);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, isEditingForm: boolean) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (isEditingForm) {
+      setIsUploadingEdit(true);
+    } else {
+      setIsUploading(true);
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        // Downscale image to fit safely in localStorage
+        const canvas = document.createElement("canvas");
+        const MAX_WIDTH = 1000;
+        const MAX_HEIGHT = 1000;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+          setPhotoUrl(dataUrl);
+        }
+        if (isEditingForm) {
+          setIsUploadingEdit(false);
+        } else {
+          setIsUploading(false);
+        }
+      };
+      img.onerror = () => {
+        if (isEditingForm) {
+          setIsUploadingEdit(false);
+        } else {
+          setIsUploading(false);
+        }
+        alert("Error al cargar la imagen. Intenta con otra.");
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.onerror = () => {
+      if (isEditingForm) {
+        setIsUploadingEdit(false);
+      } else {
+        setIsUploading(false);
+      }
+      alert("Error al leer el archivo.");
+    };
+    reader.readAsDataURL(file);
+  };
+
   useEffect(() => {
     const saved = localStorage.getItem("wedding_gallery_photos");
     if (saved) {
@@ -1525,15 +1730,41 @@ function GaleriaAdmin() {
             <span>Agregar Nueva Fotografía a la Galería</span>
           </h5>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-[10px] uppercase text-zinc-400 font-bold block">URL de la Imagen</label>
-              <input
-                type="text"
-                placeholder="https://images.unsplash.com/..."
-                value={photoUrl}
-                onChange={(e) => setPhotoUrl(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
-              />
+            <div className="space-y-1 sm:col-span-2 bg-zinc-950/40 p-4 border border-zinc-800/80 rounded-sm">
+              <label className="text-[10px] uppercase text-gold-400 font-bold block mb-2">Fotografía (Subir archivo o pegar URL)</label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* File Upload Button Area */}
+                <div className="bg-zinc-950 border border-dashed border-zinc-800 rounded-sm p-4 flex flex-col items-center justify-center text-center relative hover:border-gold-500/50 transition-colors group cursor-pointer min-h-[100px]">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleFileChange(e, false)}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
+                  />
+                  {isUploading ? (
+                    <RefreshCw className="w-6 h-6 text-gold-400 animate-spin" />
+                  ) : (
+                    <Upload className="w-6 h-6 text-zinc-500 group-hover:text-gold-500 transition-colors" />
+                  )}
+                  <span className="text-xs text-zinc-300 font-medium mt-2">
+                    {isUploading ? "Cargando imagen..." : "Seleccionar Archivo"}
+                  </span>
+                  <span className="text-[9px] text-zinc-500 mt-0.5">Soporta JPG, PNG, WEBP</span>
+                </div>
+
+                {/* URL Input Area */}
+                <div className="flex flex-col justify-center space-y-2">
+                  <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">O introduce la URL de la Imagen:</span>
+                  <input
+                    type="text"
+                    placeholder="https://images.unsplash.com/..."
+                    value={photoUrl}
+                    onChange={(e) => setPhotoUrl(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+                  />
+                  <span className="text-[9px] text-zinc-500 italic">El archivo cargado se convertirá automáticamente para almacenamiento rápido.</span>
+                </div>
+              </div>
             </div>
             <div className="space-y-1">
               <label className="text-[10px] uppercase text-zinc-400 font-bold block">Frase o Pie de Foto</label>
@@ -1603,14 +1834,33 @@ function GaleriaAdmin() {
           <div key={photo.id} className="bg-zinc-900/60 border border-zinc-800 p-4 rounded-sm flex flex-col justify-between">
             {editingId === photo.id ? (
               <div className="space-y-3 text-left">
-                <div className="space-y-1">
-                  <label className="text-[9px] uppercase text-gold-400 font-bold block">URL de la Imagen</label>
-                  <input
-                    type="text"
-                    value={photoUrl}
-                    onChange={(e) => setPhotoUrl(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
-                  />
+                <div className="space-y-1 bg-zinc-950/30 p-2.5 border border-zinc-850 rounded-xs">
+                  <label className="text-[9px] uppercase text-gold-400 font-bold block mb-1">Fotografía (Subir archivo o URL)</label>
+                  <div className="space-y-2">
+                    <div className="relative bg-zinc-950 border border-dashed border-zinc-800 rounded-sm p-2 flex items-center justify-center gap-2 cursor-pointer hover:border-gold-500/40 transition-colors group">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileChange(e, true)}
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
+                      />
+                      {isUploadingEdit ? (
+                        <RefreshCw className="w-3.5 h-3.5 text-gold-400 animate-spin" />
+                      ) : (
+                        <Upload className="w-3.5 h-3.5 text-zinc-500 group-hover:text-gold-500 transition-colors" />
+                      )}
+                      <span className="text-[10px] text-zinc-300 font-medium">
+                        {isUploadingEdit ? "Cargando..." : "Subir Nuevo Archivo"}
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      value={photoUrl}
+                      onChange={(e) => setPhotoUrl(e.target.value)}
+                      placeholder="O pega una URL"
+                      className="w-full bg-zinc-950 border border-zinc-800 p-1.5 text-[11px] rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+                    />
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <label className="text-[9px] uppercase text-gold-400 font-bold block">Frase o Pie</label>

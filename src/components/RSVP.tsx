@@ -4,9 +4,9 @@
  */
 
 import React, { useState, useEffect } from "react";
-import { Check, Send, AlertCircle, Heart, User, Search, RefreshCw, Star, HelpCircle, Phone, Sparkles } from "lucide-react";
+import { Check, Send, AlertCircle, Heart, User, Search, RefreshCw, Star, HelpCircle, Phone, Sparkles, Bell } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { RSVP } from "../types";
+import { RSVP, AdminGuest } from "../types";
 
 // =========================================================================
 // PRE-ASSIGNED GUEST REGISTRY (ADMIN CONTROL)
@@ -88,6 +88,11 @@ export default function RSVPForm() {
   const [selectedGuest, setSelectedGuest] = useState<PreAssignedGuest | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
   
+  // Personalized invitation states
+  const [personalizedGuest, setPersonalizedGuest] = useState<AdminGuest | null>(null);
+  const [isPersonalized, setIsPersonalized] = useState(false);
+  const [wantsReminder, setWantsReminder] = useState(false);
+
   // Confirmation state
   const [attending, setAttending] = useState<boolean | null>(null);
   const [message, setMessage] = useState("");
@@ -96,15 +101,49 @@ export default function RSVPForm() {
   const [errorMsg, setErrorMsg] = useState("");
   const [successAnimation, setSuccessAnimation] = useState(false);
 
-  // Load existing RSVP from localStorage if any
+  // Load existing RSVP and check URL for invitation code
   useEffect(() => {
+    // 1. Check URL parameters
+    const params = new URLSearchParams(window.location.search);
+    const guestCode = params.get("invitado") || params.get("code");
+    
+    // Load existing RSVP if any
     const saved = localStorage.getItem("wedding_rsvp");
+    let loadedRsvp: RSVP | null = null;
     if (saved) {
       try {
-        const parsed = JSON.parse(saved);
-        setActiveRsvp(parsed);
+        loadedRsvp = JSON.parse(saved);
+        setActiveRsvp(loadedRsvp);
       } catch (e) {
         console.error("Error reading saved RSVP", e);
+      }
+    }
+
+    if (guestCode) {
+      const codeUpper = guestCode.trim().toUpperCase();
+      const savedGuests = localStorage.getItem("wedding_admin_guests");
+      let guestsList: AdminGuest[] = [];
+      if (savedGuests) {
+        try {
+          guestsList = JSON.parse(savedGuests);
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      
+      const matched = guestsList.find(g => g.code?.toUpperCase() === codeUpper);
+      if (matched) {
+        setPersonalizedGuest(matched);
+        setIsPersonalized(true);
+        setAttending(matched.status === "Confirmado" ? true : matched.status === "No asiste" ? false : true);
+        setWantsReminder(matched.wantsReminder || false);
+        setMessage(matched.notes || "");
+
+        // If the URL has a code, but the browser has a saved RSVP for a different guest,
+        // we bypass the saved RSVP to let them confirm for the URL guest code.
+        if (loadedRsvp && loadedRsvp.code !== matched.code) {
+          setActiveRsvp(null);
+        }
       }
     }
   }, []);
@@ -156,6 +195,72 @@ export default function RSVPForm() {
 
   const handleConfirmSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg("");
+
+    if (isPersonalized && personalizedGuest) {
+      if (attending === null) {
+        setErrorMsg("Por favor, selecciona si asistirás o no.");
+        return;
+      }
+
+      const attendanceStatus = attending ? "Confirmado" : "No asiste";
+
+      // 1. Update the guest in wedding_admin_guests database so the admin sees it in real-time!
+      const saved = localStorage.getItem("wedding_admin_guests");
+      if (saved) {
+        try {
+          const guestsList: AdminGuest[] = JSON.parse(saved);
+          const updated = guestsList.map(g => {
+            if (g.id === personalizedGuest.id) {
+              return {
+                ...g,
+                status: attendanceStatus,
+                wantsReminder: wantsReminder,
+                notes: message.trim() || undefined
+              };
+            }
+            return g;
+          });
+          localStorage.setItem("wedding_admin_guests", JSON.stringify(updated));
+          // Dispatch event to update the admin list if open
+          window.dispatchEvent(new Event("wedding_admin_guests_updated"));
+        } catch (e) {
+          console.error("Error updating admin guests", e);
+        }
+      }
+
+      // 2. Save active RSVP to wedding_rsvp so RSVP section shows as "Already Confirmed"
+      const rsvpData: RSVP = {
+        id: "rsvp-personalized-" + personalizedGuest.id,
+        fullName: `${personalizedGuest.firstName} ${personalizedGuest.lastName}`,
+        attending: attending,
+        guestsCount: attending ? personalizedGuest.quota : 0,
+        phone: personalizedGuest.phone || "Registro Automatizado",
+        message: message.trim() || undefined,
+        code: personalizedGuest.code,
+        wantsReminder: wantsReminder,
+        timestamp: new Date().toLocaleDateString("es-ES", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      };
+
+      try {
+        localStorage.setItem("wedding_rsvp", JSON.stringify(rsvpData));
+        setActiveRsvp(rsvpData);
+        setSuccessAnimation(true);
+        setTimeout(() => setSuccessAnimation(false), 4500);
+      } catch (err) {
+        setErrorMsg("Ocurrió un error al registrar la confirmación. Inténtalo de nuevo.");
+        console.error(err);
+      }
+      return;
+    }
+
+    // Standard non-personalized flow
     if (!selectedGuest) return;
     if (attending === null) {
       setErrorMsg("Por favor, selecciona si asistirás o no.");
@@ -166,9 +271,10 @@ export default function RSVPForm() {
       id: "rsvp-" + normalizeString(selectedGuest.fullName).replace(/\s+/g, "-"),
       fullName: selectedGuest.fullName,
       attending: attending,
-      guestsCount: attending ? selectedGuest.quota : 0, // Assigned strictly by administrator
-      phone: "Registro Automatizado", // Satisfy the RSVP interface requirement elegantly
+      guestsCount: attending ? selectedGuest.quota : 0,
+      phone: "Registro Automatizado",
       message: message.trim() || undefined,
+      wantsReminder: wantsReminder,
       timestamp: new Date().toLocaleDateString("es-ES", {
         day: "numeric",
         month: "long",
@@ -179,20 +285,9 @@ export default function RSVPForm() {
     };
 
     try {
-      // =========================================================================
-      // FUTURE FIREBASE / FIRESTORE STORAGE CONNECTION HOOK:
-      // When connecting database later, you'll simply do:
-      // =========================================================================
-      // import { getFirestore, doc, setDoc } from "firebase/firestore";
-      // const db = getFirestore();
-      // await setDoc(doc(db, "rsvps", rsvpData.id), rsvpData);
-      // =========================================================================
-
       localStorage.setItem("wedding_rsvp", JSON.stringify(rsvpData));
       setActiveRsvp(rsvpData);
       setSuccessAnimation(true);
-      
-      // Auto close the celebration toast after 4.5s
       setTimeout(() => setSuccessAnimation(false), 4500);
     } catch (err) {
       setErrorMsg("Ocurrió un error al registrar la confirmación. Inténtalo de nuevo.");
@@ -201,11 +296,17 @@ export default function RSVPForm() {
   };
 
   const handleResetRsvp = () => {
-    if (window.confirm("¿Deseas modificar o registrar otra confirmación?")) {
+    const confirmMessage = isPersonalized 
+      ? "¿Deseas modificar tu respuesta de asistencia?"
+      : "¿Deseas modificar o registrar otra confirmación?";
+      
+    if (window.confirm(confirmMessage)) {
       localStorage.removeItem("wedding_rsvp");
       setActiveRsvp(null);
-      handleBackToSearch();
-      setSearchName("");
+      if (!isPersonalized) {
+        handleBackToSearch();
+        setSearchName("");
+      }
     }
   };
 
@@ -299,6 +400,19 @@ export default function RSVPForm() {
                     </div>
                   </div>
 
+                  {activeRsvp.wantsReminder !== undefined && (
+                    <div className="mt-4 pt-3 border-t border-zinc-100 flex items-center justify-between">
+                      <span className="font-sans text-[9px] uppercase tracking-widest text-zinc-400 font-bold">Recordatorio de Boda</span>
+                      <span className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${
+                        activeRsvp.wantsReminder 
+                          ? "bg-amber-50 text-amber-700 border-amber-200" 
+                          : "bg-zinc-50 text-zinc-500 border-zinc-200"
+                      }`}>
+                        {activeRsvp.wantsReminder ? "🔔 Recordatorio Activado" : "Sin Recordatorio"}
+                      </span>
+                    </div>
+                  )}
+
                   {activeRsvp.message && (
                     <div className="mt-4 pt-3 border-t border-zinc-100">
                       <span className="font-sans text-[9px] uppercase tracking-widest text-zinc-400 font-bold block mb-1.5">Mensaje para Kimberly & Jhon</span>
@@ -323,7 +437,7 @@ export default function RSVPForm() {
                   <span>Modificar mi Respuesta</span>
                 </button>
               </motion.div>
-            ) : selectedGuest ? (
+            ) : (isPersonalized && personalizedGuest) || selectedGuest ? (
               
               // =========================================================================
               // SCREEN 2: GUEST MATCHED - ATTENDANCE CONFIRMATION FORM
@@ -338,32 +452,36 @@ export default function RSVPForm() {
                 className="space-y-6 text-left"
               >
                 {/* Back to search link */}
-                <button
-                  type="button"
-                  onClick={handleBackToSearch}
-                  className="inline-flex items-center text-[10px] tracking-widest uppercase text-gold-600 hover:text-gold-700 font-bold mb-2 transition-colors cursor-pointer"
-                >
-                  ← Buscar otro nombre
-                </button>
+                {!isPersonalized && (
+                  <button
+                    type="button"
+                    onClick={handleBackToSearch}
+                    className="inline-flex items-center text-[10px] tracking-widest uppercase text-gold-600 hover:text-gold-700 font-bold mb-2 transition-colors cursor-pointer"
+                  >
+                    ← Buscar otro nombre
+                  </button>
+                )}
 
                 {/* Personal Greeting & Welcoming Text */}
                 <div className="bg-white p-5 border border-gold-200 rounded-sm relative shadow-sm">
                   <div className="absolute top-0 bottom-0 left-0 w-1 bg-gold-400" />
                   <h3 className="font-serif text-xl sm:text-2xl text-zinc-950 font-light mb-1.5">
-                    ¡Hola, {selectedGuest.fullName}!
+                    ¡Hola, {isPersonalized && personalizedGuest ? `${personalizedGuest.firstName} ${personalizedGuest.lastName}` : selectedGuest?.fullName}! 💕
                   </h3>
                   <p className="font-serif italic text-xs sm:text-sm text-zinc-600 leading-relaxed mb-3">
-                    &ldquo;{selectedGuest.welcomeMessage}&rdquo;
+                    {isPersonalized && personalizedGuest 
+                      ? "Queremos celebrar este día con un ambiente sofisticado. Los invitamos a confirmar su asistencia a continuación."
+                      : selectedGuest ? `“${selectedGuest.welcomeMessage}”` : ""}
                   </p>
                   
                   {/* Immutable Assigned Seats Count badge */}
                   <div className="inline-flex items-center space-x-2 bg-gold-50 border border-gold-200 px-3.5 py-2 rounded-sm mt-1">
                     <Star className="w-4 h-4 text-gold-600 fill-current animate-pulse" />
                     <span className="font-sans text-[10px] tracking-widest uppercase font-semibold text-zinc-500">
-                      Cupos Reservados:
+                      Cupos Asignados:
                     </span>
                     <span className="font-serif text-base font-bold text-gold-700">
-                      {selectedGuest.quota} {selectedGuest.quota === 1 ? 'Persona' : 'Personas'}
+                      {isPersonalized && personalizedGuest ? personalizedGuest.quota : selectedGuest?.quota} {((isPersonalized && personalizedGuest) ? personalizedGuest.quota : selectedGuest?.quota) === 1 ? 'Persona' : 'Personas'}
                     </span>
                   </div>
                 </div>
@@ -400,6 +518,26 @@ export default function RSVPForm() {
                   </div>
                 </div>
 
+                {/* Reminder Checkbox Option */}
+                <div className="bg-zinc-50 p-4 border border-gold-100 rounded-sm flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    id="wants-reminder"
+                    checked={wantsReminder}
+                    onChange={(e) => setWantsReminder(e.target.checked)}
+                    className="w-4 h-4 text-gold-600 border-gold-300 rounded-xs focus:ring-gold-500 mt-1 cursor-pointer accent-gold-600"
+                  />
+                  <div className="space-y-0.5">
+                    <label htmlFor="wants-reminder" className="font-sans text-[11px] uppercase tracking-wider font-bold text-zinc-800 cursor-pointer flex items-center gap-1.5">
+                      <Bell className="w-3.5 h-3.5 text-gold-600" />
+                      <span>Recordarme el Día de la Boda</span>
+                    </label>
+                    <p className="text-zinc-500 text-xs font-light">
+                      Marcando esta opción, te enviaremos un recordatorio especial por WhatsApp o Correo días antes del evento con la ubicación y el itinerario actualizado.
+                    </p>
+                  </div>
+                </div>
+
                 {/* Message to Couple */}
                 <div className="space-y-1.5">
                   <label className="font-sans text-[10px] uppercase tracking-widest text-zinc-500 font-bold">
@@ -423,13 +561,15 @@ export default function RSVPForm() {
 
                 {/* Actions Block */}
                 <div className="pt-4 flex flex-col sm:flex-row justify-end items-center gap-4">
-                  <button
-                    type="button"
-                    onClick={handleBackToSearch}
-                    className="w-full sm:w-auto px-6 py-3 border border-zinc-300 hover:bg-zinc-50 font-sans text-xs tracking-wider uppercase font-semibold text-zinc-600 cursor-pointer rounded-sm"
-                  >
-                    Regresar
-                  </button>
+                  {!isPersonalized && (
+                    <button
+                      type="button"
+                      onClick={handleBackToSearch}
+                      className="w-full sm:w-auto px-6 py-3 border border-zinc-300 hover:bg-zinc-50 font-sans text-xs tracking-wider uppercase font-semibold text-zinc-600 cursor-pointer rounded-sm"
+                    >
+                      Regresar
+                    </button>
+                  )}
                   <button
                     type="submit"
                     className="w-full sm:w-auto flex items-center justify-center space-x-2 px-10 py-3.5 bg-zinc-950 hover:bg-zinc-800 text-white font-sans text-xs tracking-[0.25em] uppercase transition-colors cursor-pointer font-bold rounded-sm shadow-md"
