@@ -33,7 +33,7 @@ export default function App() {
         "galeria",
         "confirmar-asistencia",
         "encuentra-tu-mesa",
-        "mesa-de-regalos",
+        "lluvia-de-sobres",
         "comparte-tus-fotos",
         "mensajes",
         "contacto",
@@ -103,7 +103,7 @@ export default function App() {
         {/* Interactive Table / Seating Chart Finder */}
         <TableFinder />
 
-        {/* Registry & Lluvia de Sobres */}
+        {/* Lluvia de Sobres */}
         <GiftRegistry />
 
         {/* Collaborative Photo Sharing Grid */}

@@ -24,7 +24,7 @@ export default function Navigation({ activeSection }: NavigationProps) {
     { label: "Galería", id: "galeria" },
     { label: "Confirmación", id: "confirmar-asistencia" },
     { label: "Mi Mesa", id: "encuentra-tu-mesa" },
-    { label: "Regalos", id: "mesa-de-regalos" },
+    { label: "Lluvia de Sobres", id: "lluvia-de-sobres" },
     { label: "Comparte Fotos", id: "comparte-tus-fotos" },
     { label: "Mensajes", id: "mensajes" },
     { label: "Contacto", id: "contacto" },
