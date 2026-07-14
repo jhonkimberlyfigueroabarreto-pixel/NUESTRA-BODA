@@ -3,30 +3,56 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { MessageCircle, Heart, Phone, Award } from "lucide-react";
 
+const DEFAULT_CONTACTS = [
+  {
+    name: "Kimberly Figueroa",
+    role: "La Novia",
+    phone: "+57 300 123 4567",
+    message: "¡Hola! Tengo una duda sobre los detalles de la boda...",
+  },
+  {
+    name: "Jhon Jairo",
+    role: "El Novio",
+    phone: "+57 311 987 6543",
+    message: "¡Hola Jhon! Te escribo por un tema relacionado con la celebración...",
+  },
+  {
+    name: "Mariana Gómez",
+    role: "Wedding Planner & Coordinadora",
+    phone: "+57 320 456 7890",
+    message: "Estimada Mariana, tengo una pregunta sobre la organización o el protocolo...",
+  },
+];
+
 export default function Contact() {
-  const contacts = [
-    {
-      name: "Kimberly Figueroa",
-      role: "La Novia",
-      phone: "+57 300 123 4567",
-      message: "¡Hola! Tengo una duda sobre los detalles de la boda...",
-    },
-    {
-      name: "Jhon Jairo",
-      role: "El Novio",
-      phone: "+57 311 987 6543",
-      message: "¡Hola Jhon! Te escribo por un tema relacionado con la celebración...",
-    },
-    {
-      name: "Mariana Gómez",
-      role: "Wedding Planner & Coordinadora",
-      phone: "+57 320 456 7890",
-      message: "Estimada Mariana, tengo una pregunta sobre la organización o el protocolo...",
-    },
-  ];
+  const [contacts, setContacts] = useState(DEFAULT_CONTACTS);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("wedding_contacts");
+    if (saved) {
+      try {
+        setContacts(JSON.parse(saved));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    const handleUpdate = () => {
+      const updated = localStorage.getItem("wedding_contacts");
+      if (updated) {
+        try {
+          setContacts(JSON.parse(updated));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    };
+    window.addEventListener("wedding_contact_updated", handleUpdate);
+    return () => window.removeEventListener("wedding_contact_updated", handleUpdate);
+  }, []);
 
   return (
     <section id="contacto" className="py-24 bg-white relative overflow-hidden">

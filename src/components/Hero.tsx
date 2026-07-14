@@ -30,6 +30,9 @@ interface HeroProps {
 
 export default function Hero({ onDiscoverClick }: HeroProps) {
   const [cover, setCover] = useState<string>(coverImage);
+  const [countdownTitle, setCountdownTitle] = useState<string>(HERO_CONFIG.countdownTitle);
+  const [formattedDate, setFormattedDate] = useState<string>(HERO_CONFIG.weddingDateFormatted);
+  const [weddingDate, setWeddingDate] = useState<Date>(WEDDING_DATE);
   const [timeLeft, setTimeLeft] = useState({
     days: 0,
     hours: 0,
@@ -38,15 +41,34 @@ export default function Hero({ onDiscoverClick }: HeroProps) {
     isOver: false,
   });
 
-  // Load custom cover on mount
+  // Load custom cover and countdown on mount
   useEffect(() => {
     const savedCover = localStorage.getItem("wedding_custom_cover_image");
     if (savedCover) {
       setCover(savedCover);
     }
+
+    const savedTitle = localStorage.getItem("wedding_countdown_title");
+    if (savedTitle) {
+      setCountdownTitle(savedTitle);
+    }
+
+    const savedFormatted = localStorage.getItem("wedding_countdown_date_formatted");
+    if (savedFormatted) {
+      setFormattedDate(savedFormatted);
+    }
+
+    const savedDate = localStorage.getItem("wedding_countdown_date");
+    if (savedDate) {
+      try {
+        setWeddingDate(new Date(savedDate));
+      } catch (e) {
+        console.error(e);
+      }
+    }
   }, []);
 
-  // Listen for cover image updates in real-time
+  // Listen for updates in real-time
   useEffect(() => {
     const handleCoverUpdate = () => {
       const savedCover = localStorage.getItem("wedding_custom_cover_image");
@@ -56,13 +78,37 @@ export default function Hero({ onDiscoverClick }: HeroProps) {
         setCover(coverImage);
       }
     };
+
+    const handleCountdownUpdate = () => {
+      const savedTitle = localStorage.getItem("wedding_countdown_title");
+      if (savedTitle) setCountdownTitle(savedTitle);
+
+      const savedFormatted = localStorage.getItem("wedding_countdown_date_formatted");
+      if (savedFormatted) setFormattedDate(savedFormatted);
+
+      const savedDate = localStorage.getItem("wedding_countdown_date");
+      if (savedDate) {
+        try {
+          setWeddingDate(new Date(savedDate));
+        } catch (e) {
+          console.error(e);
+        }
+      } else {
+        setWeddingDate(WEDDING_DATE);
+      }
+    };
+
     window.addEventListener("wedding_cover_updated", handleCoverUpdate);
-    return () => window.removeEventListener("wedding_cover_updated", handleCoverUpdate);
+    window.addEventListener("wedding_countdown_date_updated", handleCountdownUpdate);
+    return () => {
+      window.removeEventListener("wedding_cover_updated", handleCoverUpdate);
+      window.removeEventListener("wedding_countdown_date_updated", handleCountdownUpdate);
+    };
   }, []);
 
   useEffect(() => {
     const calculateTimeLeft = () => {
-      const difference = WEDDING_DATE.getTime() - new Date().getTime();
+      const difference = weddingDate.getTime() - new Date().getTime();
       if (difference <= 0) {
         setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0, isOver: true });
         return;
@@ -80,7 +126,7 @@ export default function Hero({ onDiscoverClick }: HeroProps) {
     calculateTimeLeft();
     const timer = setInterval(calculateTimeLeft, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [weddingDate]);
 
   return (
     <section
@@ -173,7 +219,7 @@ export default function Hero({ onDiscoverClick }: HeroProps) {
 
           <div className="flex items-center space-x-2 text-zinc-300 font-sans tracking-[0.2em] text-xs sm:text-sm mb-6 uppercase">
             <Calendar className="w-4 h-4 text-gold-400" />
-            <span>{HERO_CONFIG.weddingDateFormatted}</span>
+            <span>{formattedDate}</span>
           </div>
 
           {/* Romantic Text Block */}
@@ -204,8 +250,10 @@ export default function Hero({ onDiscoverClick }: HeroProps) {
             transition={{ duration: 1.2, delay: 0.9, ease: "easeOut" }}
             className="w-full max-w-2xl"
           >
-            <p className="font-sans text-[10px] tracking-[0.3em] text-gold-400/90 uppercase mb-4 font-semibold">
-              {HERO_CONFIG.countdownTitle}
+            <p className="font-serif italic text-xs sm:text-sm tracking-[0.25em] text-gold-400 mb-6 flex items-center justify-center gap-3">
+              <span className="h-[1px] w-8 bg-gradient-to-r from-transparent to-gold-400/40" />
+              <span>{countdownTitle}</span>
+              <span className="h-[1px] w-8 bg-gradient-to-l from-transparent to-gold-400/40" />
             </p>
 
             {/* Countdown Grid - High-end Cards */}

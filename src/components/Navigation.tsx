@@ -20,6 +20,7 @@ export default function Navigation({ activeSection }: NavigationProps) {
     { label: "Nuestra historia", id: "nuestra-historia" },
     { label: "Ceremonia", id: "ceremonia" },
     { label: "Recepción", id: "recepcion" },
+    { label: "Código de Vestimenta", id: "codigo-vestimenta" },
     { label: "Itinerario", id: "itinerario" },
     { label: "Galería", id: "galeria" },
     { label: "Confirmación", id: "confirmar-asistencia" },

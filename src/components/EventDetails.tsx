@@ -120,17 +120,7 @@ export default function EventDetails() {
                 </div>
               </div>
 
-              <div className="h-[1px] w-12 bg-gold-300 mx-auto mb-6" />
-
-              {/* Dress Code */}
-              <div className="flex flex-col items-center">
-                <div className="flex items-center space-x-2 text-zinc-950 mb-2">
-                  <Shirt className="w-5 h-5 text-olive-600" />
-                  <span className="font-serif text-base tracking-wider text-zinc-800">Código de Vestimenta</span>
-                </div>
-                <p className="font-sans text-sm font-semibold text-zinc-700 max-w-md">{events[0].dressCode}</p>
-                <p className="font-sans text-xs text-zinc-400 mt-2 italic">{events[0].note}</p>
-              </div>
+              {/* No nested dress code here, moved to a separate section */}
             </div>
           </div>
         </div>
@@ -205,17 +195,89 @@ export default function EventDetails() {
                 </div>
               </div>
 
-              <div className="h-[1px] w-12 bg-gold-300 mx-auto mb-6" />
+              {/* No nested dress code here, moved to a separate section */}
+            </div>
+          </div>
+        </div>
+      </section>
 
-              {/* Dress Code */}
-              <div className="flex flex-col items-center">
-                <div className="flex items-center space-x-2 text-zinc-950 mb-2">
-                  <Shirt className="w-5 h-5 text-olive-600" />
-                  <span className="font-serif text-base tracking-wider text-zinc-800">Código de Vestimenta</span>
+      {/* CÓDIGO DE VESTIMENTA SECTION */}
+      <section id="codigo-vestimenta" className="py-24 bg-white relative overflow-hidden border-t border-gold-200/50">
+        {/* Subtle decorative vector watermark background */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.015] text-zinc-900 pointer-events-none select-none">
+          <Shirt className="w-[30vw] h-[30vw] stroke-[1]" />
+        </div>
+
+        <div className="max-w-4xl mx-auto px-6 relative z-10">
+          <div className="text-center mb-16">
+            <p className="font-serif text-xs tracking-[0.3em] uppercase text-gold-600 mb-3">
+              CÓMO VESTIR PARA NUESTRO DÍA
+            </p>
+            <h2 className="font-serif text-3xl sm:text-5xl font-light tracking-wide text-zinc-900">
+              Código de Vestimenta
+            </h2>
+            <div className="h-[1px] w-20 bg-gold-400 mx-auto mt-4" />
+          </div>
+
+          <div className="relative bg-gold-50 p-8 md:p-12 rounded-sm shadow-xl border border-gold-300 max-w-2xl mx-auto">
+            {/* Elegant double border inside card */}
+            <div className="absolute inset-2 border border-gold-400/20 pointer-events-none" />
+
+            <div className="text-center space-y-6">
+              <span className="inline-block p-4 rounded-full bg-white border border-gold-200 text-gold-500 mb-2">
+                <Shirt className="w-8 h-8 stroke-[1.25]" />
+              </span>
+
+              <h3 className="font-serif text-2xl sm:text-3xl text-zinc-800 font-light">
+                Dress Code: <span className="font-normal text-gold-600">Formal Elegante</span>
+              </h3>
+
+              <p className="font-sans text-sm text-zinc-600 max-w-md mx-auto leading-relaxed">
+                Queremos celebrar este día con un ambiente sofisticado. Los invitamos a vestir de manera formal y elegante.
+              </p>
+
+              <div className="h-[1px] w-24 bg-gold-300 mx-auto my-6" />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left max-w-lg mx-auto">
+                {/* Caballeros */}
+                <div className="bg-white/80 p-5 rounded-sm border border-gold-200/40 shadow-sm relative">
+                  <div className="absolute top-3 right-3 text-gold-500/20 font-serif text-3xl select-none">♂</div>
+                  <h4 className="font-serif text-base text-zinc-800 font-medium mb-2 border-b border-gold-200/30 pb-1">
+                    Caballeros
+                  </h4>
+                  <p className="font-sans text-xs sm:text-sm text-zinc-600 leading-relaxed">
+                    Traje, blazer con pantalón de vestir o conjunto formal. <span className="text-zinc-400 italic text-xs block mt-1">(Smoking opcional.)</span>
+                  </p>
                 </div>
-                <p className="font-sans text-sm font-semibold text-zinc-700 max-w-md">{events[1].dressCode}</p>
-                <p className="font-sans text-xs text-zinc-400 mt-2 italic">{events[1].note}</p>
+
+                {/* Damas */}
+                <div className="bg-white/80 p-5 rounded-sm border border-gold-200/40 shadow-sm relative">
+                  <div className="absolute top-3 right-3 text-gold-500/20 font-serif text-3xl select-none">♀</div>
+                  <h4 className="font-serif text-base text-zinc-800 font-medium mb-2 border-b border-gold-200/30 pb-1">
+                    Damas
+                  </h4>
+                  <p className="font-sans text-xs sm:text-sm text-zinc-600 leading-relaxed">
+                    Vestido elegante, largo o midi, o conjunto formal.
+                  </p>
+                </div>
               </div>
+
+              {/* Crucial color warning */}
+              <div className="mt-8 bg-zinc-900 text-white p-5 rounded-sm border border-gold-500/30 shadow-md max-w-lg mx-auto">
+                <p className="font-serif text-xs tracking-widest text-gold-400 uppercase font-semibold mb-2">
+                  Nota Especial para los Invitados
+                </p>
+                <p className="font-sans text-xs sm:text-sm text-zinc-300 italic">
+                  &ldquo;Reservar los tonos blanco, beige y sus derivados&rdquo;
+                </p>
+                <div className="flex justify-center gap-1.5 mt-3">
+                  <span className="w-5 h-5 rounded-full bg-white border border-zinc-800" title="Blanco" />
+                  <span className="w-5 h-5 rounded-full bg-[#f5f5dc] border border-zinc-800" title="Beige" />
+                  <span className="w-5 h-5 rounded-full bg-[#fffdd0] border border-zinc-800" title="Crema" />
+                  <span className="w-5 h-5 rounded-full bg-[#fdf5e6] border border-zinc-800" title="Marfil" />
+                </div>
+              </div>
+
             </div>
           </div>
         </div>

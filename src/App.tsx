@@ -29,6 +29,7 @@ export default function App() {
         "nuestra-historia",
         "ceremonia",
         "recepcion",
+        "codigo-vestimenta",
         "itinerario",
         "galeria",
         "confirmar-asistencia",

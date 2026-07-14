@@ -159,6 +159,7 @@ export default function OurStory() {
                         </div>
 
                         {/* Title & Description */}
+                        <span className="font-serif italic text-xs text-gold-600 block mb-1">{milestone.date}</span>
                         <h4 className="font-serif text-xl font-medium text-zinc-900 mb-2">
                           {milestone.title}
                         </h4>
@@ -196,6 +197,7 @@ export default function OurStory() {
                         </div>
 
                         {/* Title & Description */}
+                        <span className="font-serif italic text-xs text-gold-600 block mb-1">{milestone.date}</span>
                         <h4 className="font-serif text-xl font-medium text-zinc-900 mb-2">
                           {milestone.title}
                         </h4>

@@ -3,10 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import * as LucideIcons from "lucide-react";
 import { ITINERARY_DATA } from "../data";
+import { ItineraryItem } from "../types";
 
 // Helper to resolve icon by string name
 function resolveIcon(iconName: string) {
@@ -18,6 +19,32 @@ function resolveIcon(iconName: string) {
 }
 
 export default function Itinerary() {
+  const [itinerary, setItinerary] = useState<ItineraryItem[]>(ITINERARY_DATA);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("wedding_itinerary");
+    if (saved) {
+      try {
+        setItinerary(JSON.parse(saved));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    const handleUpdate = () => {
+      const updated = localStorage.getItem("wedding_itinerary");
+      if (updated) {
+        try {
+          setItinerary(JSON.parse(updated));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    };
+    window.addEventListener("wedding_itinerary_updated", handleUpdate);
+    return () => window.removeEventListener("wedding_itinerary_updated", handleUpdate);
+  }, []);
+
   return (
     <section id="itinerario" className="py-24 bg-white relative overflow-hidden">
       {/* Decorative vertical lines and leaves background */}
@@ -48,7 +75,7 @@ export default function Itinerary() {
 
           {/* Staggered Timeline Items */}
           <div className="space-y-12">
-            {ITINERARY_DATA.map((item, index) => {
+            {itinerary.map((item, index) => {
               const isEven = index % 2 === 0;
               return (
                 <motion.div

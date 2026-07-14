@@ -3,15 +3,40 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Mail, Landmark, Copy, Check, Heart } from "lucide-react";
 import { GIFT_REGISTRY_CHANNELS } from "../data";
 
 export default function GiftRegistry() {
   const [copiedBank, setCopiedBank] = useState(false);
+  const [bankInfo, setBankInfo] = useState(GIFT_REGISTRY_CHANNELS.bank);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("wedding_bank_info");
+    if (saved) {
+      try {
+        setBankInfo(JSON.parse(saved));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    const handleUpdate = () => {
+      const updated = localStorage.getItem("wedding_bank_info");
+      if (updated) {
+        try {
+          setBankInfo(JSON.parse(updated));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    };
+    window.addEventListener("wedding_bank_updated", handleUpdate);
+    return () => window.removeEventListener("wedding_bank_updated", handleUpdate);
+  }, []);
 
   const handleCopyAccount = () => {
-    navigator.clipboard.writeText(GIFT_REGISTRY_CHANNELS.bank.accountNumber);
+    navigator.clipboard.writeText(bankInfo.accountNumber);
     setCopiedBank(true);
     setTimeout(() => setCopiedBank(false), 2500);
   };
@@ -84,33 +109,33 @@ export default function GiftRegistry() {
               <div className="bg-gold-50/50 p-4 border border-gold-200/60 rounded-sm inline-block text-left w-full mx-auto space-y-2.5 text-xs sm:text-sm">
                 <div className="grid grid-cols-3 gap-1">
                   <span className="text-[9px] text-zinc-400 uppercase font-bold font-sans">Banco</span>
-                  <span className="font-medium text-zinc-800 col-span-2 text-right">{GIFT_REGISTRY_CHANNELS.bank.bankName}</span>
+                  <span className="font-medium text-zinc-800 col-span-2 text-right">{bankInfo.bankName}</span>
                 </div>
                 <div className="h-px bg-gold-200/30" />
                 <div className="grid grid-cols-3 gap-1">
                   <span className="text-[9px] text-zinc-400 uppercase font-bold font-sans">Cuenta</span>
                   <span className="font-medium text-zinc-800 col-span-2 text-right text-xs sm:text-sm">
-                    {GIFT_REGISTRY_CHANNELS.bank.accountType}
+                    {bankInfo.accountType}
                   </span>
                 </div>
                 <div className="h-px bg-gold-200/30" />
                 <div className="grid grid-cols-3 gap-1">
                   <span className="text-[9px] text-zinc-400 uppercase font-bold font-sans">Número</span>
                   <span className="font-mono font-bold text-zinc-900 col-span-2 text-right select-all">
-                    {GIFT_REGISTRY_CHANNELS.bank.accountNumber}
+                    {bankInfo.accountNumber}
                   </span>
                 </div>
                 <div className="h-px bg-gold-200/30" />
                 <div className="grid grid-cols-3 gap-1">
                   <span className="text-[9px] text-zinc-400 uppercase font-bold font-sans">Titular</span>
                   <span className="font-medium text-zinc-700 col-span-2 text-right text-xs leading-tight">
-                    {GIFT_REGISTRY_CHANNELS.bank.titular}
+                    {bankInfo.titular}
                   </span>
                 </div>
                 <div className="h-px bg-gold-200/30" />
                 <div className="grid grid-cols-3 gap-1">
                   <span className="text-[9px] text-zinc-400 uppercase font-bold font-sans">ID / C.C.</span>
-                  <span className="font-medium text-zinc-700 col-span-2 text-right">{GIFT_REGISTRY_CHANNELS.bank.document}</span>
+                  <span className="font-medium text-zinc-700 col-span-2 text-right">{bankInfo.document}</span>
                 </div>
               </div>
             </div>

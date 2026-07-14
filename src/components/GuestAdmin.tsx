@@ -27,14 +27,31 @@ import {
   ChevronDown,
   Camera,
   Upload,
-  RefreshCw
+  RefreshCw,
+  Landmark,
+  Calendar,
+  Clock,
+  Music,
+  Utensils,
+  PartyPopper,
+  HeartHandshake,
+  Church,
+  GlassWater,
+  Gift,
+  MapPin,
+  Heart,
+  Star,
+  Smile,
+  ArrowUp,
+  ArrowDown
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { AdminGuest } from "../types";
+import { AdminGuest, ItineraryItem } from "../types";
 import TableAdmin from "./TableAdmin";
 import CoverPhotoEditor from "./CoverPhotoEditor";
 import { TIMELINE_MILESTONES } from "./OurStory";
 import { INITIAL_GALLERY_PHOTOS } from "./Gallery";
+import { GIFT_REGISTRY_CHANNELS, ITINERARY_DATA } from "../data";
 
 // =========================================================================
 // DEFAULT SEED DATA FOR THE ADMINISTRATION MODULE
@@ -162,7 +179,7 @@ export default function GuestAdmin() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
-  const [activeTab, setActiveTab] = useState<"invitados" | "mesas" | "fotos" | "historia" | "galeria">("invitados");
+  const [activeTab, setActiveTab] = useState<"invitados" | "mesas" | "fotos" | "historia" | "galeria" | "informacion" | "itinerario">("invitados");
 
   // Listen for opening event from footer or navigation
   useEffect(() => {
@@ -599,6 +616,28 @@ export default function GuestAdmin() {
                   )}
                 </button>
                 <button
+                  onClick={() => setActiveTab("itinerario")}
+                  className={`pb-4 px-2 text-xs uppercase tracking-[0.2em] font-sans font-bold transition-all relative cursor-pointer shrink-0 ${
+                    activeTab === "itinerario" ? "text-gold-400" : "text-zinc-500 hover:text-zinc-200"
+                  }`}
+                >
+                  <span>Itinerario</span>
+                  {activeTab === "itinerario" && (
+                    <motion.div layoutId="admin-active-tab" className="absolute bottom-0 left-0 right-0 h-[2px] bg-gold-500" />
+                  )}
+                </button>
+                <button
+                  onClick={() => setActiveTab("informacion")}
+                  className={`pb-4 px-2 text-xs uppercase tracking-[0.2em] font-sans font-bold transition-all relative cursor-pointer shrink-0 ${
+                    activeTab === "informacion" ? "text-gold-400" : "text-zinc-500 hover:text-zinc-200"
+                  }`}
+                >
+                  <span>Cuentas y Contacto</span>
+                  {activeTab === "informacion" && (
+                    <motion.div layoutId="admin-active-tab" className="absolute bottom-0 left-0 right-0 h-[2px] bg-gold-500" />
+                  )}
+                </button>
+                <button
                   onClick={() => setActiveTab("fotos")}
                   className={`pb-4 px-2 text-xs uppercase tracking-[0.2em] font-sans font-bold transition-all relative cursor-pointer shrink-0 ${
                     activeTab === "fotos" ? "text-gold-400" : "text-zinc-500 hover:text-zinc-200"
@@ -947,6 +986,10 @@ export default function GuestAdmin() {
                 <HistoriaAdmin />
               ) : activeTab === "galeria" ? (
                 <GaleriaAdmin />
+              ) : activeTab === "itinerario" ? (
+                <ItinerarioAdmin />
+              ) : activeTab === "informacion" ? (
+                <InformacionAdmin />
               ) : (
                 <CoverPhotoEditor />
               )}
@@ -1261,14 +1304,40 @@ function HistoriaAdmin() {
                     className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none resize-none"
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] uppercase text-gold-400 font-bold block">URL de la Imagen</label>
-                  <input
-                    type="text"
-                    value={editImg}
-                    onChange={(e) => setEditImg(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
-                  />
+                <div className="space-y-2">
+                  <label className="text-[10px] uppercase text-gold-400 font-bold block">Cargar Imagen / Foto</label>
+                  <div className="flex flex-col gap-2">
+                    <label className="flex flex-col items-center justify-center border border-dashed border-zinc-800 hover:border-gold-500/50 bg-zinc-950 p-4 rounded-sm cursor-pointer transition-all text-center">
+                      <Upload className="w-5 h-5 text-gold-500 mb-1" />
+                      <span className="text-[11px] text-zinc-300 font-medium">Seleccionar Foto</span>
+                      <span className="text-[8px] text-zinc-500 uppercase">Haz clic para cargar imagen</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setEditImg(reader.result as string);
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[8px] text-zinc-500 uppercase whitespace-nowrap">O pegar URL:</span>
+                      <input
+                        type="text"
+                        placeholder="https://..."
+                        value={editImg && editImg.startsWith("data:") ? "" : editImg}
+                        onChange={(e) => setEditImg(e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-800 p-1.5 text-[10px] rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+                      />
+                    </div>
+                  </div>
                 </div>
                 {editImg && (
                   <div className="mt-2 aspect-video overflow-hidden rounded-xs border border-zinc-800 bg-zinc-950">
@@ -1633,6 +1702,732 @@ function GaleriaAdmin() {
             )}
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
+// INFORMACIONADMIN COMPONENT (EDITING BANK AND CONTACT DETAILS)
+// =========================================================================
+function InformacionAdmin() {
+  const [bankInfo, setBankInfo] = useState({
+    bankName: "Bancolombia",
+    accountType: "Cuenta de Ahorros",
+    accountNumber: "245-098765-12",
+    titular: "Kimberly Figueroa Barreto / Jhon Jairo",
+    document: "C.C. 1.020.456.789"
+  });
+
+  const [contacts, setContacts] = useState([
+    {
+      name: "Kimberly Figueroa",
+      role: "La Novia",
+      phone: "+57 300 123 4567",
+      message: "¡Hola! Tengo una duda sobre los detalles de la boda...",
+    },
+    {
+      name: "Jhon Jairo",
+      role: "El Novio",
+      phone: "+57 311 987 6543",
+      message: "¡Hola Jhon! Te escribo por un tema relacionado con la celebración...",
+    },
+    {
+      name: "Mariana Gómez",
+      role: "Wedding Planner & Coordinadora",
+      phone: "+57 320 456 7890",
+      message: "Estimada Mariana, tengo una pregunta sobre la organización o el protocolo...",
+    }
+  ]);
+
+  const [countdownTitle, setCountdownTitle] = useState("La Cuenta Regresiva");
+  const [countdownDate, setCountdownDate] = useState("2026-08-01T19:00:00");
+  const [countdownFormatted, setCountdownFormatted] = useState("1 de Agosto de 2026");
+
+  useEffect(() => {
+    const savedBank = localStorage.getItem("wedding_bank_info");
+    if (savedBank) {
+      try {
+        setBankInfo(JSON.parse(savedBank));
+      } catch (e) {
+        console.error(e);
+      }
+    } else {
+      setBankInfo(GIFT_REGISTRY_CHANNELS.bank);
+    }
+
+    const savedContacts = localStorage.getItem("wedding_contacts");
+    if (savedContacts) {
+      try {
+        setContacts(JSON.parse(savedContacts));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    const savedTitle = localStorage.getItem("wedding_countdown_title");
+    if (savedTitle) setCountdownTitle(savedTitle);
+
+    const savedDate = localStorage.getItem("wedding_countdown_date");
+    if (savedDate) setCountdownDate(savedDate);
+
+    const savedFormatted = localStorage.getItem("wedding_countdown_date_formatted");
+    if (savedFormatted) setCountdownFormatted(savedFormatted);
+  }, []);
+
+  const handleSaveBank = (e: React.FormEvent) => {
+    e.preventDefault();
+    localStorage.setItem("wedding_bank_info", JSON.stringify(bankInfo));
+    window.dispatchEvent(new Event("wedding_bank_updated"));
+    alert("¡Información de la cuenta bancaria guardada con éxito!");
+  };
+
+  const handleSaveContacts = (e: React.FormEvent) => {
+    e.preventDefault();
+    localStorage.setItem("wedding_contacts", JSON.stringify(contacts));
+    window.dispatchEvent(new Event("wedding_contact_updated"));
+    alert("¡Contactos de asistencia guardados con éxito!");
+  };
+
+  const handleSaveCountdown = (e: React.FormEvent) => {
+    e.preventDefault();
+    localStorage.setItem("wedding_countdown_title", countdownTitle);
+    localStorage.setItem("wedding_countdown_date", countdownDate);
+    localStorage.setItem("wedding_countdown_date_formatted", countdownFormatted);
+    window.dispatchEvent(new Event("wedding_countdown_date_updated"));
+    alert("¡Configuración de la cuenta regresiva guardada con éxito!");
+  };
+
+  const updateContactField = (index: number, field: string, value: string) => {
+    const updated = contacts.map((c, idx) => {
+      if (idx === index) {
+        return { ...c, [field]: value };
+      }
+      return c;
+    });
+    setContacts(updated);
+  };
+
+  return (
+    <div className="space-y-8 text-zinc-100 max-w-5xl mx-auto pb-12">
+      
+      {/* HEADER */}
+      <div className="bg-zinc-900/50 p-5 border border-zinc-800 rounded-sm">
+        <h4 className="font-serif text-lg text-gold-400">Datos y Cuentas de la Boda</h4>
+        <p className="font-sans text-[11px] text-zinc-400 uppercase tracking-wider">
+          Configura tus datos reales para la Lluvia de Sobres y los Contactos de Asistencia
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        
+        {/* BANK ACCOUNT FORM */}
+        <form onSubmit={handleSaveBank} className="bg-zinc-900/60 border border-zinc-800 p-6 rounded-sm space-y-4">
+          <h5 className="font-serif text-base text-gold-400 font-semibold border-b border-zinc-800 pb-2 flex items-center gap-2">
+            <Landmark className="w-4 h-4 text-gold-500" />
+            <span>Cuenta Bancaria (Sobre Virtual)</span>
+          </h5>
+
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase text-zinc-400 font-bold block">Nombre del Banco</label>
+              <input
+                type="text"
+                value={bankInfo.bankName}
+                onChange={(e) => setBankInfo({ ...bankInfo, bankName: e.target.value })}
+                className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase text-zinc-400 font-bold block">Tipo de Cuenta</label>
+              <input
+                type="text"
+                value={bankInfo.accountType}
+                onChange={(e) => setBankInfo({ ...bankInfo, accountType: e.target.value })}
+                className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase text-zinc-400 font-bold block">Número de Cuenta</label>
+              <input
+                type="text"
+                value={bankInfo.accountNumber}
+                onChange={(e) => setBankInfo({ ...bankInfo, accountNumber: e.target.value })}
+                className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase text-zinc-400 font-bold block">Titular de la Cuenta</label>
+              <input
+                type="text"
+                value={bankInfo.titular}
+                onChange={(e) => setBankInfo({ ...bankInfo, titular: e.target.value })}
+                className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase text-zinc-400 font-bold block">Documento de Identidad / C.C.</label>
+              <input
+                type="text"
+                value={bankInfo.document}
+                onChange={(e) => setBankInfo({ ...bankInfo, document: e.target.value })}
+                className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-4">
+            <button
+              type="submit"
+              className="px-5 py-2 bg-gold-500 hover:bg-gold-600 text-zinc-950 uppercase text-[10px] font-bold tracking-widest rounded-sm cursor-pointer transition-all"
+            >
+              Guardar Cuenta Bancaria
+            </button>
+          </div>
+        </form>
+
+        {/* CONTACTS FORM */}
+        <form onSubmit={handleSaveContacts} className="bg-zinc-900/60 border border-zinc-800 p-6 rounded-sm space-y-6">
+          <h5 className="font-serif text-base text-gold-400 font-semibold border-b border-zinc-800 pb-2 flex items-center gap-2">
+            <Phone className="w-4 h-4 text-gold-500" />
+            <span>Contactos de Asistencia (WhatsApp)</span>
+          </h5>
+
+          <div className="space-y-6">
+            {contacts.map((contact, idx) => (
+              <div key={idx} className="bg-zinc-950/60 p-4 border border-zinc-800 rounded-sm space-y-3">
+                <span className="text-[9px] bg-gold-500/10 text-gold-400 px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                  Contacto #{idx + 1}: {contact.role}
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase text-zinc-500 font-bold block">Nombre Completo</label>
+                    <input
+                      type="text"
+                      value={contact.name}
+                      onChange={(e) => updateContactField(idx, "name", e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase text-zinc-500 font-bold block">Rol / Descripción</label>
+                    <input
+                      type="text"
+                      value={contact.role}
+                      onChange={(e) => updateContactField(idx, "role", e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase text-zinc-500 font-bold block">Teléfono (WhatsApp)</label>
+                    <input
+                      type="text"
+                      placeholder="+57 300 123 4567"
+                      value={contact.phone}
+                      onChange={(e) => updateContactField(idx, "phone", e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase text-zinc-500 font-bold block">Mensaje predeterminado WA</label>
+                    <input
+                      type="text"
+                      value={contact.message}
+                      onChange={(e) => updateContactField(idx, "message", e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-end pt-4">
+            <button
+              type="submit"
+              className="px-5 py-2 bg-gold-500 hover:bg-gold-600 text-zinc-950 uppercase text-[10px] font-bold tracking-widest rounded-sm cursor-pointer transition-all"
+            >
+              Guardar Contactos de Asistencia
+            </button>
+          </div>
+        </form>
+
+      </div>
+
+      {/* COUNTDOWN CONFIGURATION FORM */}
+      <form onSubmit={handleSaveCountdown} className="bg-zinc-900/60 border border-zinc-800 p-6 rounded-sm space-y-4 max-w-2xl mx-auto mt-8">
+        <h5 className="font-serif text-base text-gold-400 font-semibold border-b border-zinc-800 pb-2 flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-gold-500" />
+          <span>Configuración de la Cuenta Regresiva</span>
+        </h5>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase text-zinc-400 font-bold block">Título de la Sección</label>
+            <input
+              type="text"
+              value={countdownTitle}
+              onChange={(e) => setCountdownTitle(e.target.value)}
+              className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+              required
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase text-zinc-400 font-bold block">Fecha y Hora del Evento</label>
+            <input
+              type="datetime-local"
+              value={countdownDate}
+              onChange={(e) => setCountdownDate(e.target.value)}
+              className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+              required
+            />
+          </div>
+
+          <div className="space-y-1 md:col-span-2">
+            <label className="text-[10px] uppercase text-zinc-400 font-bold block">Fecha Formateada (Texto visible en portada)</label>
+            <input
+              type="text"
+              placeholder="Ej: 1 de Agosto de 2026"
+              value={countdownFormatted}
+              onChange={(e) => setCountdownFormatted(e.target.value)}
+              className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+              required
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-2">
+          <button
+            type="submit"
+            className="px-5 py-2 bg-gold-500 hover:bg-gold-600 text-zinc-950 uppercase text-[10px] font-bold tracking-widest rounded-sm cursor-pointer transition-all"
+          >
+            Guardar Fecha y Cuenta Regresiva
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function ItinerarioAdmin() {
+  const [itinerary, setItinerary] = useState<ItineraryItem[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Form states for new item
+  const [newTime, setNewTime] = useState("");
+  const [newTitle, setNewTitle] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [newIcon, setNewIcon] = useState("Clock");
+
+  // Form states for editing item
+  const [editTime, setEditTime] = useState("");
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editIcon, setEditIcon] = useState("Clock");
+
+  // Load from local storage
+  useEffect(() => {
+    const saved = localStorage.getItem("wedding_itinerary");
+    if (saved) {
+      try {
+        setItinerary(JSON.parse(saved));
+      } catch (e) {
+        setItinerary(ITINERARY_DATA);
+      }
+    } else {
+      setItinerary(ITINERARY_DATA);
+    }
+  }, []);
+
+  // Save changes helper
+  const saveItinerary = (updatedList: ItineraryItem[]) => {
+    setItinerary(updatedList);
+    localStorage.setItem("wedding_itinerary", JSON.stringify(updatedList));
+    window.dispatchEvent(new Event("wedding_itinerary_updated"));
+  };
+
+  const handleAddItem = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newItem: ItineraryItem = {
+      id: "iti-custom-" + Date.now(),
+      time: newTime,
+      title: newTitle,
+      description: newDescription,
+      iconName: newIcon
+    };
+    const updated = [...itinerary, newItem];
+    // Auto sort by time
+    updated.sort((a, b) => a.time.localeCompare(b.time));
+    saveItinerary(updated);
+    
+    // Reset fields
+    setNewTime("");
+    setNewTitle("");
+    setNewDescription("");
+    setNewIcon("Clock");
+    alert("¡Evento agregado al itinerario!");
+  };
+
+  const handleStartEdit = (item: ItineraryItem) => {
+    setEditingId(item.id);
+    setEditTime(item.time);
+    setEditTitle(item.title);
+    setEditDescription(item.description);
+    setEditIcon(item.iconName);
+  };
+
+  const handleSaveEdit = (id: string) => {
+    const updated = itinerary.map((item) => {
+      if (item.id === id) {
+        return {
+          ...item,
+          time: editTime,
+          title: editTitle,
+          description: editDescription,
+          iconName: editIcon
+        };
+      }
+      return item;
+    });
+    // Auto sort by time
+    updated.sort((a, b) => a.time.localeCompare(b.time));
+    saveItinerary(updated);
+    setEditingId(null);
+    alert("¡Evento actualizado!");
+  };
+
+  const handleDeleteItem = (id: string) => {
+    if (confirm("¿Estás seguro de que deseas eliminar este evento del itinerario?")) {
+      const updated = itinerary.filter((item) => item.id !== id);
+      saveItinerary(updated);
+      alert("¡Evento eliminado!");
+    }
+  };
+
+  const handleMoveUp = (index: number) => {
+    if (index === 0) return;
+    const updated = [...itinerary];
+    const temp = updated[index];
+    updated[index] = updated[index - 1];
+    updated[index - 1] = temp;
+    saveItinerary(updated);
+  };
+
+  const handleMoveDown = (index: number) => {
+    if (index === itinerary.length - 1) return;
+    const updated = [...itinerary];
+    const temp = updated[index];
+    updated[index] = updated[index + 1];
+    updated[index + 1] = temp;
+    saveItinerary(updated);
+  };
+
+  const handleResetToDefault = () => {
+    if (confirm("¿Deseas restablecer el itinerario a su versión original? Esto borrará tus cambios personalizados.")) {
+      saveItinerary(ITINERARY_DATA);
+      alert("¡Itinerario restablecido con éxito!");
+    }
+  };
+
+  const handleSortByTime = () => {
+    const sorted = [...itinerary].sort((a, b) => a.time.localeCompare(b.time));
+    saveItinerary(sorted);
+    alert("¡Itinerario ordenado cronológicamente por hora!");
+  };
+
+  const availableIcons = [
+    { name: "Church", label: "Iglesia / Ceremonia" },
+    { name: "GlassWater", label: "Cóctel / Copa" },
+    { name: "Sparkles", label: "Entrada de Novios" },
+    { name: "Utensils", label: "Banquete / Cena" },
+    { name: "Music", label: "Baile / Vals" },
+    { name: "PartyPopper", label: "Fiesta / DJ" },
+    { name: "HeartHandshake", label: "Despedida / Saludos" },
+    { name: "Clock", label: "Reloj / Horario" },
+    { name: "Camera", label: "Fotos / Sesión" },
+    { name: "Gift", label: "Regalos / Sobres" },
+    { name: "MapPin", label: "Ubicación" },
+    { name: "Heart", label: "Amor" },
+    { name: "Star", label: "Estrella" },
+    { name: "Smile", label: "Sonrisa / Bienvenida" }
+  ];
+
+  // Resolve icon component dynamically for preview
+  const getIconComponent = (iconName: string) => {
+    const icons: Record<string, React.ComponentType<any>> = {
+      Church, GlassWater, Sparkles, Utensils, Music, PartyPopper, HeartHandshake, Clock, Camera, Gift, MapPin, Heart, Star, Smile
+    };
+    const IconComp = icons[iconName] || Clock;
+    return <IconComp className="w-4 h-4 text-gold-500" />;
+  };
+
+  return (
+    <div className="space-y-8 text-zinc-100 max-w-5xl mx-auto pb-12">
+      <div className="bg-zinc-900/50 p-5 border border-zinc-800 rounded-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h4 className="font-serif text-lg text-gold-400">Editor del Itinerario de Boda</h4>
+          <p className="font-sans text-[11px] text-zinc-400 uppercase tracking-wider">
+            Personaliza el cronograma, horas, descripciones e íconos para cada evento del gran día
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={handleSortByTime}
+            className="px-3 py-1.5 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white uppercase text-[9px] font-bold tracking-wider rounded-sm flex items-center gap-1.5 cursor-pointer"
+          >
+            <Clock className="w-3.5 h-3.5 text-gold-400" />
+            <span>Ordenar por Hora</span>
+          </button>
+          <button
+            onClick={handleResetToDefault}
+            className="px-3 py-1.5 border border-zinc-800 hover:border-zinc-700 text-red-400 hover:text-red-300 uppercase text-[9px] font-bold tracking-wider rounded-sm flex items-center gap-1.5 cursor-pointer"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Restablecer Original</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* ADD EVENT FORM */}
+        <div className="lg:col-span-1">
+          <form onSubmit={handleAddItem} className="bg-zinc-900/60 border border-zinc-800 p-5 rounded-sm space-y-4 sticky top-6">
+            <h5 className="font-serif text-sm text-gold-400 font-semibold border-b border-zinc-800 pb-2 flex items-center gap-2">
+              <Plus className="w-4 h-4 text-gold-500" />
+              <span>Agregar Nuevo Evento</span>
+            </h5>
+
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase text-zinc-400 font-bold block">Hora (Ej: 19:30)</label>
+                <input
+                  type="text"
+                  placeholder="19:00"
+                  value={newTime}
+                  onChange={(e) => setNewTime(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase text-zinc-400 font-bold block">Título del Evento</label>
+                <input
+                  type="text"
+                  placeholder="Ej: Banquete de Gala"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase text-zinc-400 font-bold block">Descripción / Detalles</label>
+                <textarea
+                  placeholder="Una deliciosa cena preparada para compartir..."
+                  rows={3}
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none resize-none"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase text-zinc-400 font-bold block">Seleccionar Ícono</label>
+                <select
+                  value={newIcon}
+                  onChange={(e) => setNewIcon(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+                >
+                  {availableIcons.map((ico) => (
+                    <option key={ico.name} value={ico.name}>
+                      {ico.label}
+                    </option>
+                  ))}
+                </select>
+                <div className="flex items-center gap-2 mt-2 p-2 bg-zinc-950 border border-zinc-800 rounded-sm">
+                  <span className="text-[9px] text-zinc-500 uppercase">Vista previa de ícono:</span>
+                  {getIconComponent(newIcon)}
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-2 bg-gold-500 hover:bg-gold-600 text-zinc-950 uppercase text-[10px] font-bold tracking-widest rounded-sm cursor-pointer transition-all flex items-center justify-center gap-1.5"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Agregar Evento</span>
+            </button>
+          </form>
+        </div>
+
+        {/* ITINERARY LIST EDITOR */}
+        <div className="lg:col-span-2 space-y-4">
+          <div className="bg-zinc-900/40 p-4 border border-zinc-800 rounded-sm">
+            <span className="text-xs font-serif text-zinc-400 italic">Lista de Eventos Registrados</span>
+          </div>
+
+          <div className="space-y-3">
+            {itinerary.length === 0 ? (
+              <div className="text-center py-12 bg-zinc-900/20 border border-zinc-800 border-dashed rounded-sm text-zinc-500 italic">
+                No hay eventos en el itinerario. Agrega uno usando el panel izquierdo.
+              </div>
+            ) : (
+              itinerary.map((item, index) => (
+                <div
+                  key={item.id}
+                  className="bg-zinc-900/60 border border-zinc-800 p-4 rounded-sm transition-all hover:border-zinc-700 relative"
+                >
+                  {editingId === item.id ? (
+                    /* EDITING MODE */
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[9px] uppercase text-zinc-500 font-bold block">Hora</label>
+                          <input
+                            type="text"
+                            value={editTime}
+                            onChange={(e) => setEditTime(e.target.value)}
+                            className="w-full bg-zinc-950 border border-zinc-800 p-1.5 text-xs rounded-sm text-zinc-100 outline-none"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-1 sm:col-span-2">
+                          <label className="text-[9px] uppercase text-zinc-500 font-bold block">Título del Evento</label>
+                          <input
+                            type="text"
+                            value={editTitle}
+                            onChange={(e) => setEditTitle(e.target.value)}
+                            className="w-full bg-zinc-950 border border-zinc-800 p-1.5 text-xs rounded-sm text-zinc-100 outline-none"
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[9px] uppercase text-zinc-500 font-bold block">Descripción / Detalles</label>
+                        <textarea
+                          rows={2}
+                          value={editDescription}
+                          onChange={(e) => setEditDescription(e.target.value)}
+                          className="w-full bg-zinc-950 border border-zinc-800 p-1.5 text-xs rounded-sm text-zinc-100 outline-none resize-none"
+                          required
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                        <div className="space-y-1">
+                          <label className="text-[9px] uppercase text-zinc-500 font-bold block">Ícono</label>
+                          <select
+                            value={editIcon}
+                            onChange={(e) => setEditIcon(e.target.value)}
+                            className="w-full bg-zinc-950 border border-zinc-800 p-1.5 text-xs rounded-sm text-zinc-100 outline-none"
+                          >
+                            {availableIcons.map((ico) => (
+                              <option key={ico.name} value={ico.name}>
+                                {ico.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex justify-end gap-2 pt-4">
+                          <button
+                            type="button"
+                            onClick={() => setEditingId(null)}
+                            className="px-3 py-1.5 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-white uppercase text-[9px] font-bold rounded-sm cursor-pointer"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSaveEdit(item.id)}
+                            className="px-4 py-1.5 bg-gold-500 hover:bg-gold-600 text-zinc-950 uppercase text-[9px] font-bold rounded-sm cursor-pointer"
+                          >
+                            Guardar
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    /* READ-ONLY CARD */
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                      <div className="flex items-start gap-4">
+                        <div className="p-2.5 bg-zinc-950 border border-zinc-800 rounded-sm flex items-center justify-center shrink-0">
+                          {getIconComponent(item.iconName)}
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-serif text-sm font-semibold text-gold-400">{item.time}</span>
+                            <span className="h-1.5 w-1.5 rounded-full bg-zinc-700" />
+                            <h6 className="font-serif text-sm font-bold text-zinc-200">{item.title}</h6>
+                          </div>
+                          <p className="text-xs text-zinc-400 font-light max-w-md leading-relaxed">{item.description}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                        <div className="flex flex-col gap-1">
+                          <button
+                            onClick={() => handleMoveUp(index)}
+                            disabled={index === 0}
+                            className={`p-1 border border-zinc-800/80 rounded-xs hover:border-zinc-700 text-zinc-400 hover:text-gold-400 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed`}
+                            title="Subir"
+                          >
+                            <ArrowUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleMoveDown(index)}
+                            disabled={index === itinerary.length - 1}
+                            className={`p-1 border border-zinc-800/80 rounded-xs hover:border-zinc-700 text-zinc-400 hover:text-gold-400 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed`}
+                            title="Bajar"
+                          >
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        <button
+                          onClick={() => handleStartEdit(item)}
+                          className="p-2 border border-zinc-800/80 hover:border-zinc-700 rounded-sm text-zinc-400 hover:text-gold-400 cursor-pointer transition-colors"
+                          title="Editar"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteItem(item.id)}
+                          className="p-2 border border-zinc-800/80 hover:border-red-900/60 rounded-sm text-zinc-400 hover:text-red-400 cursor-pointer transition-colors"
+                          title="Eliminar"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
