@@ -1,0 +1,6 @@
+{
+  "name": "Boda Kimberly y Jhon Jairo",
+  "description": "Aplicación premium de bodas inspirada en Cartier para Kimberly y Jhon Jairo, con invitaciones digitales, itinerario, confirmación de asistencia, mapa de mesas y mesa de regalos.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

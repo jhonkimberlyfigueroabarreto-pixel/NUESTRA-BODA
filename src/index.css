@@ -1,0 +1,87 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Montserrat:wght@200;300;400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Cormorant Garamond", Georgia, serif;
+  --font-sans: "Montserrat", sans-serif;
+
+  --color-gold-50: #fbf8f3;
+  --color-gold-100: #f6efe0;
+  --color-gold-200: #eadbbf;
+  --color-gold-300: #dbbf94;
+  --color-gold-400: #c9a06b;
+  --color-gold-500: #b58d53; /* Cartier-inspired elegant rich gold */
+  --color-gold-600: #9c733c;
+  --color-gold-700: #7d592b;
+  --color-gold-800: #5c3f1c;
+  --color-gold-900: #3d2810;
+
+  --color-olive-50: #fcfdfc;
+  --color-olive-100: #f1f4f1;
+  --color-olive-200: #e2e8e2;
+  --color-olive-300: #c4d1c4;
+  --color-olive-400: #9cb19c;
+  --color-olive-500: #728c72; /* Warm olive green */
+  --color-olive-600: #587058;
+  --color-olive-700: #425442;
+  --color-olive-800: #2d382d;
+  --color-olive-900: #1a211a;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #fcfdfc;
+}
+::-webkit-scrollbar-thumb {
+  background: #eadbbf;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #b58d53;
+}
+
+html {
+  scroll-behavior: smooth;
+  background-color: #fbf8f3; /* Elegant off-white champagne */
+  color: #1a211a;
+}
+
+body {
+  font-family: var(--font-sans);
+}
+
+/* Cartier Luxury Border Style */
+.cartier-border {
+  border: 1px solid #b58d53;
+  position: relative;
+}
+.cartier-border::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  right: 4px;
+  bottom: 4px;
+  border: 1px solid #b58d53;
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* Text luxury shimmer */
+.text-shimmer {
+  background: linear-gradient(to right, #b58d53 20%, #eadbbf 40%, #c9a06b 60%, #b58d53 80%);
+  background-size: 200% auto;
+  color: transparent;
+  background-clip: text;
+  -webkit-background-clip: text;
+  animation: shine 6s linear infinite;
+}
+
+@keyframes shine {
+  to {
+    background-position: 200% center;
+  }
+}
