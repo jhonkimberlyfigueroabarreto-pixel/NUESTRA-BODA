@@ -49,7 +49,7 @@ import {
   MessageSquare
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { AdminGuest, ItineraryItem } from "../types";
+import { AdminGuest, ItineraryItem, GuestbookMessage, PhotoAsset } from "../types";
 import TableAdmin from "./TableAdmin";
 import CoverPhotoEditor from "./CoverPhotoEditor";
 import { TIMELINE_MILESTONES } from "./OurStory";
@@ -68,7 +68,13 @@ import {
   saveGalleryPhoto,
   deleteGalleryPhoto,
   getWeddingSettings,
-  saveWeddingSettings
+  saveWeddingSettings,
+  getGuestbookMessages,
+  saveGuestbookMessage,
+  deleteGuestbookMessage,
+  getGuestPhotos,
+  saveGuestPhoto,
+  deleteGuestPhoto
 } from "../lib/firestoreService";
 
 function generateUniqueGuestCode(existingGuests: AdminGuest[]): string {
@@ -213,7 +219,7 @@ export default function GuestAdmin() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
-  const [activeTab, setActiveTab] = useState<"invitados" | "mesas" | "fotos" | "historia" | "galeria" | "informacion" | "itinerario">("invitados");
+  const [activeTab, setActiveTab] = useState<"invitados" | "mesas" | "fotos" | "historia" | "galeria" | "informacion" | "itinerario" | "mensajes_invitados" | "fotos_invitados">("invitados");
 
   // Listen for opening event from footer or navigation
   useEffect(() => {
@@ -745,6 +751,28 @@ export default function GuestAdmin() {
                     <motion.div layoutId="admin-active-tab" className="absolute bottom-0 left-0 right-0 h-[2px] bg-gold-500" />
                   )}
                 </button>
+                <button
+                  onClick={() => setActiveTab("mensajes_invitados")}
+                  className={`pb-4 px-2 text-xs uppercase tracking-[0.2em] font-sans font-bold transition-all relative cursor-pointer shrink-0 ${
+                    activeTab === "mensajes_invitados" ? "text-gold-400" : "text-zinc-500 hover:text-zinc-200"
+                  }`}
+                >
+                  <span>Mensajes de Invitados</span>
+                  {activeTab === "mensajes_invitados" && (
+                    <motion.div layoutId="admin-active-tab" className="absolute bottom-0 left-0 right-0 h-[2px] bg-gold-500" />
+                  )}
+                </button>
+                <button
+                  onClick={() => setActiveTab("fotos_invitados")}
+                  className={`pb-4 px-2 text-xs uppercase tracking-[0.2em] font-sans font-bold transition-all relative cursor-pointer shrink-0 ${
+                    activeTab === "fotos_invitados" ? "text-gold-400" : "text-zinc-500 hover:text-zinc-200"
+                  }`}
+                >
+                  <span>Fotos de Invitados</span>
+                  {activeTab === "fotos_invitados" && (
+                    <motion.div layoutId="admin-active-tab" className="absolute bottom-0 left-0 right-0 h-[2px] bg-gold-500" />
+                  )}
+                </button>
               </div>
 
               {activeTab === "invitados" ? (
@@ -1170,6 +1198,10 @@ export default function GuestAdmin() {
                 <ItinerarioAdmin />
               ) : activeTab === "informacion" ? (
                 <InformacionAdmin />
+              ) : activeTab === "mensajes_invitados" ? (
+                <MensajesInvitadosAdmin />
+              ) : activeTab === "fotos_invitados" ? (
+                <FotosInvitadosAdmin />
               ) : (
                 <CoverPhotoEditor />
               )}
@@ -2759,6 +2791,380 @@ function ItinerarioAdmin() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// =========================================================================
+// MENSAJESINVITADOSADMIN COMPONENT (MODERATE & EDIT GUEST MESSAGES)
+// =========================================================================
+function MensajesInvitadosAdmin() {
+  const [messages, setMessages] = useState<GuestbookMessage[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editAuthor, setEditAuthor] = useState("");
+  const [editMessage, setEditMessage] = useState("");
+
+  const fetchMessages = async () => {
+    setIsLoading(true);
+    try {
+      const list = await getGuestbookMessages();
+      const sorted = [...list].sort((a, b) => {
+        if (a.id.includes("msg-") && b.id.includes("msg-")) {
+          const timeA = parseInt(a.id.replace("msg-", ""), 10);
+          const timeB = parseInt(b.id.replace("msg-", ""), 10);
+          return timeB - timeA;
+        }
+        return 0;
+      });
+      setMessages(sorted);
+    } catch (err) {
+      console.error("Error loading guestbook messages:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMessages();
+  }, []);
+
+  const handleDelete = async (id: string) => {
+    if (window.confirm("¿Estás seguro de que deseas eliminar este mensaje de los invitados?")) {
+      try {
+        await deleteGuestbookMessage(id);
+        setMessages(messages.filter((m) => m.id !== id));
+        window.dispatchEvent(new Event("wedding_guestbook_updated"));
+      } catch (err) {
+        console.error("Error deleting message:", err);
+        alert("Ocurrió un error al eliminar el mensaje.");
+      }
+    }
+  };
+
+  const startEdit = (msg: GuestbookMessage) => {
+    setEditingId(msg.id);
+    setEditAuthor(msg.author);
+    setEditMessage(msg.message);
+  };
+
+  const handleSaveEdit = async (msg: GuestbookMessage) => {
+    if (!editAuthor.trim() || !editMessage.trim()) return;
+    try {
+      const updatedMsg: GuestbookMessage = {
+        ...msg,
+        author: editAuthor.trim(),
+        message: editMessage.trim()
+      };
+      await saveGuestbookMessage(updatedMsg);
+      setMessages(messages.map((m) => m.id === msg.id ? updatedMsg : m));
+      setEditingId(null);
+      window.dispatchEvent(new Event("wedding_guestbook_updated"));
+    } catch (err) {
+      console.error("Error saving edited message:", err);
+      alert("Ocurrió un error al guardar el mensaje.");
+    }
+  };
+
+  return (
+    <div className="space-y-6 text-zinc-100 max-w-5xl mx-auto pb-12">
+      <div className="bg-zinc-900/50 p-5 border border-zinc-800 rounded-sm flex justify-between items-center">
+        <div>
+          <h4 className="font-serif text-lg text-gold-400">Mensajes de los Invitados</h4>
+          <p className="font-sans text-[11px] text-zinc-400 uppercase tracking-wider">
+            Modera o edita los mensajes y dedicatorias dejados por los invitados
+          </p>
+        </div>
+        <button
+          onClick={fetchMessages}
+          className="p-2 bg-zinc-950 hover:bg-zinc-800 border border-zinc-850 rounded-sm text-gold-400 transition-all cursor-pointer"
+          title="Recargar"
+        >
+          <RefreshCw className="w-4 h-4" />
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="text-center py-20">
+          <RefreshCw className="w-8 h-8 text-gold-500 animate-spin mx-auto" />
+          <p className="text-zinc-500 text-xs uppercase tracking-widest mt-4">Cargando dedicatorias...</p>
+        </div>
+      ) : messages.length === 0 ? (
+        <div className="text-center py-20 border border-dashed border-zinc-850 bg-zinc-900/10 rounded-sm">
+          <MessageSquare className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
+          <p className="text-zinc-400 font-serif italic text-sm">Aún no hay mensajes en el libro de visitas.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {messages.map((msg) => (
+            <div key={msg.id} className="bg-zinc-900/60 border border-zinc-800 p-5 rounded-sm flex flex-col justify-between hover:border-zinc-700 transition-colors">
+              {editingId === msg.id ? (
+                <div className="space-y-3 text-left">
+                  <div className="space-y-1">
+                    <label className="text-[9px] uppercase text-gold-400 font-bold block">Autor</label>
+                    <input
+                      type="text"
+                      value={editAuthor}
+                      onChange={(e) => setEditAuthor(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] uppercase text-gold-400 font-bold block">Mensaje</label>
+                    <textarea
+                      rows={3}
+                      value={editMessage}
+                      onChange={(e) => setEditMessage(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none resize-none"
+                      required
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="px-2.5 py-1.5 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-white uppercase text-[9px] font-bold rounded-sm cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={() => handleSaveEdit(msg)}
+                      className="px-3 py-1.5 bg-gold-500 hover:bg-gold-600 text-zinc-950 uppercase text-[9px] font-bold rounded-sm cursor-pointer"
+                    >
+                      Guardar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3 flex flex-col h-full justify-between">
+                  <div>
+                    <div className="flex justify-between items-start">
+                      <h5 className="font-serif font-bold text-zinc-100 text-sm">{msg.author}</h5>
+                      <span className="text-[9px] text-zinc-500 font-sans">{msg.timestamp}</span>
+                    </div>
+                    <p className="font-sans text-xs sm:text-sm text-zinc-300 leading-relaxed italic mt-2">
+                      &ldquo;{msg.message}&rdquo;
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between border-t border-zinc-850 pt-3 mt-4">
+                    <div className="flex items-center space-x-1 text-rose-500">
+                      <Heart className="w-3.5 h-3.5 fill-current" />
+                      <span className="text-xs font-semibold">{msg.heartCount}</span>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => startEdit(msg)}
+                        className="flex items-center space-x-1 text-gold-400 hover:text-gold-300 text-[10px] uppercase font-bold border border-gold-500/10 hover:border-gold-500/30 px-2.5 py-1 rounded-sm cursor-pointer transition-all"
+                      >
+                        <Edit className="w-3 h-3" />
+                        <span>Editar</span>
+                      </button>
+                      <button
+                        onClick={() => handleDelete(msg.id)}
+                        className="flex items-center space-x-1 text-rose-500 hover:text-rose-400 text-[10px] uppercase font-bold border border-rose-500/10 hover:border-rose-500/30 px-2.5 py-1 rounded-sm cursor-pointer transition-all"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Eliminar</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =========================================================================
+// FOTOSINVITADOSADMIN COMPONENT (MODERATE, EDIT & DELETE SHARE PHOTOS)
+// =========================================================================
+function FotosInvitadosAdmin() {
+  const [photos, setPhotos] = useState<PhotoAsset[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editAuthor, setEditAuthor] = useState("");
+  const [editCaption, setEditCaption] = useState("");
+
+  const fetchPhotos = async () => {
+    setIsLoading(true);
+    try {
+      const list = await getGuestPhotos();
+      const sorted = [...list].sort((a, b) => {
+        if (a.id.includes("guest-photo-") && b.id.includes("guest-photo-")) {
+          const timeA = parseInt(a.id.replace("guest-photo-", ""), 10);
+          const timeB = parseInt(b.id.replace("guest-photo-", ""), 10);
+          return timeB - timeA;
+        }
+        return 0;
+      });
+      setPhotos(sorted);
+    } catch (err) {
+      console.error("Error loading guest photos:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPhotos();
+  }, []);
+
+  const handleDelete = async (id: string) => {
+    if (window.confirm("¿Estás seguro de que deseas eliminar esta foto de los invitados?")) {
+      try {
+        await deleteGuestPhoto(id);
+        setPhotos(photos.filter((p) => p.id !== id));
+        window.dispatchEvent(new Event("wedding_guest_photos_updated"));
+      } catch (err) {
+        console.error("Error deleting guest photo:", err);
+        alert("Ocurrió un error al eliminar la foto.");
+      }
+    }
+  };
+
+  const startEdit = (photo: PhotoAsset) => {
+    setEditingId(photo.id);
+    setEditAuthor(photo.author);
+    setEditCaption(photo.caption);
+  };
+
+  const handleSaveEdit = async (photo: PhotoAsset) => {
+    if (!editAuthor.trim() || !editCaption.trim()) return;
+    try {
+      const updatedPhoto: PhotoAsset = {
+        ...photo,
+        author: editAuthor.trim(),
+        caption: editCaption.trim()
+      };
+      await saveGuestPhoto(updatedPhoto);
+      setPhotos(photos.map((p) => p.id === photo.id ? updatedPhoto : p));
+      setEditingId(null);
+      window.dispatchEvent(new Event("wedding_guest_photos_updated"));
+    } catch (err) {
+      console.error("Error saving edited guest photo:", err);
+      alert("Ocurrió un error al guardar los cambios.");
+    }
+  };
+
+  return (
+    <div className="space-y-6 text-zinc-100 max-w-5xl mx-auto pb-12">
+      <div className="bg-zinc-900/50 p-5 border border-zinc-800 rounded-sm flex justify-between items-center">
+        <div>
+          <h4 className="font-serif text-lg text-gold-400">Galería de Fotos de Invitados</h4>
+          <p className="font-sans text-[11px] text-zinc-400 uppercase tracking-wider">
+            Administra, edita (nombre y pie de foto) o elimina las fotos compartidas por tus invitados
+          </p>
+        </div>
+        <button
+          onClick={fetchPhotos}
+          className="p-2 bg-zinc-950 hover:bg-zinc-800 border border-zinc-850 rounded-sm text-gold-400 transition-all cursor-pointer"
+          title="Recargar"
+        >
+          <RefreshCw className="w-4 h-4" />
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="text-center py-20">
+          <RefreshCw className="w-8 h-8 text-gold-500 animate-spin mx-auto" />
+          <p className="text-zinc-500 text-xs uppercase tracking-widest mt-4">Cargando fotos de invitados...</p>
+        </div>
+      ) : photos.length === 0 ? (
+        <div className="text-center py-20 border border-dashed border-zinc-850 bg-zinc-900/10 rounded-sm">
+          <Camera className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
+          <p className="text-zinc-400 font-serif italic text-sm">Aún no hay fotos compartidas por los invitados.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+          {photos.map((photo) => (
+            <div key={photo.id} className="bg-zinc-900/60 border border-zinc-800 p-4 rounded-sm flex flex-col justify-between hover:border-zinc-700 transition-colors">
+              {editingId === photo.id ? (
+                <div className="space-y-3 text-left">
+                  <div className="aspect-video w-full overflow-hidden rounded-xs border border-zinc-800 bg-zinc-950 mb-2">
+                    <img src={photo.url} alt={photo.caption} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] uppercase text-gold-400 font-bold block">Autor (Por quién)</label>
+                    <input
+                      type="text"
+                      value={editAuthor}
+                      onChange={(e) => setEditAuthor(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] uppercase text-gold-400 font-bold block">Pie de Foto / Dedicatoria</label>
+                    <input
+                      type="text"
+                      value={editCaption}
+                      onChange={(e) => setEditCaption(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+                      required
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="px-2.5 py-1.5 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-white uppercase text-[9px] font-bold rounded-sm cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={() => handleSaveEdit(photo)}
+                      className="px-3 py-1.5 bg-gold-500 hover:bg-gold-600 text-zinc-950 uppercase text-[9px] font-bold rounded-sm cursor-pointer"
+                    >
+                      Guardar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3 flex flex-col h-full justify-between">
+                  <div>
+                    <div className="aspect-video w-full overflow-hidden rounded-xs border border-zinc-800 bg-zinc-950">
+                      <img src={photo.url} alt={photo.caption} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    </div>
+                    <p className="font-serif italic text-xs text-zinc-200 font-light mt-3 leading-relaxed">&ldquo;{photo.caption}&rdquo;</p>
+                    <div className="flex justify-between items-center mt-2.5 text-[9px] uppercase tracking-wider text-zinc-500 font-medium">
+                      <span>Por {photo.author}</span>
+                      <span>{photo.timestamp}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between border-t border-zinc-850 pt-3 mt-4">
+                    <div className="flex items-center space-x-1 text-rose-500">
+                      <Heart className="w-3.5 h-3.5 fill-current" />
+                      <span className="text-xs font-semibold">{photo.likes}</span>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => startEdit(photo)}
+                        className="flex items-center space-x-1 text-gold-400 hover:text-gold-300 text-[10px] uppercase font-bold border border-gold-500/10 hover:border-gold-500/30 px-2 py-0.5 rounded-sm cursor-pointer transition-all"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                        <span>Editar</span>
+                      </button>
+                      <button
+                        onClick={() => handleDelete(photo.id)}
+                        className="flex items-center space-x-1 text-rose-500 hover:text-rose-400 text-[10px] uppercase font-bold border border-rose-500/10 hover:border-rose-500/30 px-2 py-0.5 rounded-sm cursor-pointer transition-all"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Eliminar</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
