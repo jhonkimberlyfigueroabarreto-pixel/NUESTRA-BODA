@@ -25,6 +25,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { Table, AdminGuest } from "../types";
 import { TABLES_DATA } from "../data";
+import { getGuests, addGuest, updateGuest } from "../lib/guestsService";
 
 export default function TableAdmin() {
   // Tables and Guests states
@@ -78,30 +79,47 @@ export default function TableAdmin() {
     }
     setTables(loadedTables);
 
-    // 2. Load Guests from Admin Guests to build the master list, or extract from tables
-    const savedAdminGuests = localStorage.getItem("wedding_admin_guests");
-    let masterGuestsList: string[] = [];
-    
-    if (savedAdminGuests) {
+    const syncGuests = async (currentTables: Table[]) => {
       try {
-        const parsed: AdminGuest[] = JSON.parse(savedAdminGuests);
-        masterGuestsList = parsed.map(g => `${g.firstName} ${g.lastName}`);
+        const list = await getGuests();
+        const masterGuestsList = list.map(g => `${g.firstName} ${g.lastName}`);
+        
+        // Also extract guest names from the tables data to make sure no one is missed
+        const tableGuests = currentTables.flatMap(t => t.guests);
+        
+        // Combine and deduplicate
+        const combinedGuests = Array.from(new Set([...masterGuestsList, ...tableGuests])).filter(Boolean);
+        setGuestPool(combinedGuests);
+
+        // Calculate unassigned guests
+        const assigned = new Set(currentTables.flatMap(t => t.guests));
+        const unassigned = combinedGuests.filter(g => !assigned.has(g));
+        setUnassignedGuests(unassigned);
       } catch (e) {
-        console.error("Error parsing admin guests", e);
+        console.error("Error syncing guests in TableAdmin:", e);
       }
-    }
+    };
 
-    // Also extract guest names from the tables data to make sure no one is missed
-    const tableGuests = loadedTables.flatMap(t => t.guests);
-    
-    // Combine and deduplicate
-    const combinedGuests = Array.from(new Set([...masterGuestsList, ...tableGuests])).filter(Boolean);
-    setGuestPool(combinedGuests);
+    syncGuests(loadedTables);
 
-    // Calculate unassigned guests
-    const assigned = new Set(loadedTables.flatMap(t => t.guests));
-    const unassigned = combinedGuests.filter(g => !assigned.has(g));
-    setUnassignedGuests(unassigned);
+    // Sync when guests are updated in other views
+    const handleGuestsUpdated = () => {
+      const latestTables = localStorage.getItem("wedding_admin_tables");
+      let currentTablesList = loadedTables;
+      if (latestTables) {
+        try {
+          currentTablesList = JSON.parse(latestTables);
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      syncGuests(currentTablesList);
+    };
+
+    window.addEventListener("wedding_admin_guests_updated", handleGuestsUpdated);
+    return () => {
+      window.removeEventListener("wedding_admin_guests_updated", handleGuestsUpdated);
+    };
   }, []);
 
   // Synchronize helper to save tables and update unassigned lists
@@ -124,11 +142,14 @@ export default function TableAdmin() {
           const fullName = `${guest.firstName} ${guest.lastName}`;
           // Find which table this guest is in now
           const matchingTable = updatedTables.find(t => t.guests.includes(fullName));
-          if (matchingTable) {
-            return { ...guest, tableName: `Mesa ${matchingTable.number} - ${matchingTable.name}` };
-          } else {
-            return { ...guest, tableName: "Sin mesa" };
+          const newTableName = matchingTable ? `Mesa ${matchingTable.number} - ${matchingTable.name}` : "Sin mesa";
+          
+          if (guest.tableName !== newTableName) {
+            const updatedG = { ...guest, tableName: newTableName };
+            updateGuest(updatedG).catch(err => console.error("Error updating guest table in Firestore:", err));
+            return updatedG;
           }
+          return guest;
         });
         localStorage.setItem("wedding_admin_guests", JSON.stringify(updatedAdminGuests));
       } catch (e) {
@@ -158,17 +179,23 @@ export default function TableAdmin() {
         const parts = trimmed.split(" ");
         const firstName = parts[0] || trimmed;
         const lastName = parts.slice(1).join(" ") || "Invitado";
-        const newGuest: AdminGuest = {
-          id: "g-" + Date.now(),
+        
+        const newGuestData = {
           firstName,
           lastName,
           phone: "",
           email: "",
           quota: 1,
           tableName: "Sin mesa",
-          status: "Pendiente"
+          status: "Pendiente" as const,
+          wantsReminder: false
         };
-        localStorage.setItem("wedding_admin_guests", JSON.stringify([newGuest, ...parsed]));
+
+        addGuest(newGuestData).then(persistedGuest => {
+          const updatedGuests = [persistedGuest, ...parsed];
+          localStorage.setItem("wedding_admin_guests", JSON.stringify(updatedGuests));
+          window.dispatchEvent(new Event("wedding_admin_guests_updated"));
+        }).catch(err => console.error("Error adding guest from TableAdmin:", err));
       } catch (e) {
         console.error(e);
       }

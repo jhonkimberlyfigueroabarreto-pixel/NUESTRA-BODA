@@ -55,6 +55,7 @@ import CoverPhotoEditor from "./CoverPhotoEditor";
 import { TIMELINE_MILESTONES } from "./OurStory";
 import { INITIAL_GALLERY_PHOTOS } from "./Gallery";
 import { GIFT_REGISTRY_CHANNELS, ITINERARY_DATA } from "../data";
+import { getGuests, addGuest, updateGuest, deleteGuestFromDb } from "../lib/guestsService";
 
 function generateUniqueGuestCode(existingGuests: AdminGuest[]): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -219,6 +220,7 @@ export default function GuestAdmin() {
 
   // Guests list & CRUD States
   const [guests, setGuests] = useState<AdminGuest[]>([]);
+  const [isLoadingGuests, setIsLoadingGuests] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("todos");
   const [tableFilter, setTableFilter] = useState<string>("todos");
@@ -249,50 +251,46 @@ export default function GuestAdmin() {
       setIsAuthenticated(true);
     }
 
-    // Load or initialize guests list
-    const savedGuests = localStorage.getItem("wedding_admin_guests");
-    if (savedGuests) {
+    const loadFirestoreGuests = async () => {
+      setIsLoadingGuests(true);
       try {
-        const parsed = JSON.parse(savedGuests);
-        let updated = false;
-        const checkedGuests = parsed.map((g: AdminGuest) => {
-          if (!g.code) {
-            g.code = generateUniqueGuestCode(parsed);
-            updated = true;
-          }
-          return g;
-        });
-        if (updated) {
-          localStorage.setItem("wedding_admin_guests", JSON.stringify(checkedGuests));
-        }
-        setGuests(checkedGuests);
+        const dbGuests = await getGuests();
+        setGuests(dbGuests);
+        localStorage.setItem("wedding_admin_guests", JSON.stringify(dbGuests));
       } catch (e) {
-        console.error("Error parsing guests database, resetting...", e);
-        setGuests(INITIAL_ADMIN_GUESTS);
-      }
-    } else {
-      const seeded = INITIAL_ADMIN_GUESTS.map((g, idx, arr) => {
-        const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-        let code = "";
-        do {
-          code = "";
-          for (let i = 0; i < 6; i++) {
-            code += chars.charAt(Math.floor(Math.random() * chars.length));
+        console.error("Error loading guests from Firestore, falling back to local cache:", e);
+        // Fallback to local storage if Firestore is unreachable
+        const savedGuests = localStorage.getItem("wedding_admin_guests");
+        if (savedGuests) {
+          try {
+            setGuests(JSON.parse(savedGuests));
+          } catch (e2) {
+            console.error("Error parsing local cache guests:", e2);
           }
-        } while (arr.slice(0, idx).some(ex => (ex as any).code === code));
-        
-        return {
-          ...g,
-          code: code
-        };
-      });
-      setGuests(seeded);
-      localStorage.setItem("wedding_admin_guests", JSON.stringify(seeded));
-    }
+        }
+      } finally {
+        setIsLoadingGuests(false);
+      }
+    };
+
+    loadFirestoreGuests();
+
+    // Listeners for updates
+    const handleUpdateEvent = () => {
+      loadFirestoreGuests();
+    };
+
+    window.addEventListener("wedding_admin_guests_updated", handleUpdateEvent);
+    window.addEventListener("wedding_tables_updated", handleUpdateEvent);
+
+    return () => {
+      window.removeEventListener("wedding_admin_guests_updated", handleUpdateEvent);
+      window.removeEventListener("wedding_tables_updated", handleUpdateEvent);
+    };
   }, []);
 
-  // Save changes to localStorage helper
-  const saveGuestsToStorage = (updatedGuests: AdminGuest[]) => {
+  // Save changes helper (keeps cache and Firestore in sync)
+  const saveGuestsToStorage = async (updatedGuests: AdminGuest[]) => {
     setGuests(updatedGuests);
     localStorage.setItem("wedding_admin_guests", JSON.stringify(updatedGuests));
   };
@@ -319,7 +317,7 @@ export default function GuestAdmin() {
   };
 
   // Form submit (Create or Update)
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError("");
 
@@ -333,45 +331,53 @@ export default function GuestAdmin() {
       return;
     }
 
-    if (editingGuest) {
-      // Edit mode
-      const updated = guests.map(g => {
-        if (g.id === editingGuest.id) {
-          return {
-            ...g,
-            firstName: formFirstName.trim(),
-            lastName: formLastName.trim(),
-            phone: formPhone.trim(),
-            email: formEmail.trim(),
-            quota: formQuota,
-            tableName: formTableName,
-            status: formStatus,
-            notes: formNotes.trim() || undefined,
-            code: g.code || generateUniqueGuestCode(guests),
-          };
-        }
-        return g;
-      });
-      saveGuestsToStorage(updated);
-    } else {
-      // Add mode
-      const newGuest: AdminGuest = {
-        id: "g-" + Date.now(),
-        firstName: formFirstName.trim(),
-        lastName: formLastName.trim(),
-        phone: formPhone.trim(),
-        email: formEmail.trim(),
-        quota: formQuota,
-        tableName: formTableName,
-        status: formStatus,
-        notes: formNotes.trim() || undefined,
-        code: generateUniqueGuestCode(guests),
-      };
-      saveGuestsToStorage([newGuest, ...guests]);
-    }
+    setIsLoadingGuests(true);
+    try {
+      if (editingGuest) {
+        // Edit mode
+        const updatedGuest: AdminGuest = {
+          ...editingGuest,
+          firstName: formFirstName.trim(),
+          lastName: formLastName.trim(),
+          phone: formPhone.trim(),
+          email: formEmail.trim(),
+          quota: formQuota,
+          tableName: formTableName,
+          status: formStatus,
+          notes: formNotes.trim() || undefined,
+          wantsReminder: editingGuest.wantsReminder || false
+        };
 
-    setIsFormOpen(false);
-    resetFormFields();
+        const updated = guests.map(g => g.id === editingGuest.id ? updatedGuest : g);
+        await saveGuestsToStorage(updated);
+        await updateGuest(updatedGuest);
+      } else {
+        // Add mode
+        const newGuestData = {
+          firstName: formFirstName.trim(),
+          lastName: formLastName.trim(),
+          phone: formPhone.trim(),
+          email: formEmail.trim(),
+          quota: formQuota,
+          tableName: formTableName,
+          status: formStatus,
+          notes: formNotes.trim() || undefined,
+          wantsReminder: false
+        };
+
+        const persistedGuest = await addGuest(newGuestData);
+        await saveGuestsToStorage([persistedGuest, ...guests]);
+      }
+      // Dispatch update event
+      window.dispatchEvent(new Event("wedding_admin_guests_updated"));
+      setIsFormOpen(false);
+      resetFormFields();
+    } catch (err) {
+      console.error("Error saving guest:", err);
+      setFormError("Ocurrió un error al guardar en la base de datos persistente.");
+    } finally {
+      setIsLoadingGuests(false);
+    }
   };
 
   const resetFormFields = () => {
@@ -396,19 +402,29 @@ export default function GuestAdmin() {
     setEditingGuest(guest);
     setFormFirstName(guest.firstName);
     setFormLastName(guest.lastName);
-    setFormPhone(guest.phone);
-    setFormEmail(guest.email);
+    setFormPhone(guest.phone || "");
+    setFormEmail(guest.email || "");
     setFormQuota(guest.quota);
-    setFormTableName(guest.tableName);
+    setFormTableName(guest.tableName || "Mesa 1 - Imperial de Honor");
     setFormStatus(guest.status);
     setFormNotes(guest.notes || "");
     setIsFormOpen(true);
   };
 
-  const handleDeleteGuest = (id: string, name: string) => {
+  const handleDeleteGuest = async (id: string, name: string) => {
     if (window.confirm(`¿Estás seguro de que deseas eliminar a "${name}" de la lista de invitados?`)) {
-      const filtered = guests.filter(g => g.id !== id);
-      saveGuestsToStorage(filtered);
+      setIsLoadingGuests(true);
+      try {
+        const filtered = guests.filter(g => g.id !== id);
+        await saveGuestsToStorage(filtered);
+        await deleteGuestFromDb(id);
+        window.dispatchEvent(new Event("wedding_admin_guests_updated"));
+      } catch (err) {
+        console.error("Error deleting guest:", err);
+        alert("No se pudo eliminar el invitado de la base de datos persistente.");
+      } finally {
+        setIsLoadingGuests(false);
+      }
     }
   };
 
@@ -427,6 +443,14 @@ export default function GuestAdmin() {
   const handleShareWhatsApp = (guest: AdminGuest) => {
     const link = getGuestLink(guest.code || "");
     const text = `¡Hola ${guest.firstName}! 💕 Te invitamos cordialmente a nuestra boda. Aquí tienes tu enlace personalizado para confirmar tu asistencia (tienes ${guest.quota} ${guest.quota === 1 ? 'cupo asignado' : 'cupos asignados'}): ${link}`;
+    const encodedText = encodeURIComponent(text);
+    const cleanPhone = guest.phone ? guest.phone.replace(/[^0-9]/g, '') : '';
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedText}`;
+    window.open(whatsappUrl, "_blank");
+  };
+
+  const handleShareNonConfirmationWhatsApp = (guest: AdminGuest) => {
+    const text = `¡Hola ${guest.firstName}! 💕 Queríamos agradecerte de todo corazón tu cariño y tus buenos deseos para nuestra boda. Al haber concluido la fecha máxima de confirmación (15 de Julio de 2026) y no registrarse tu respuesta, entendemos perfectamente que por diferentes motivos no podrás acompañarnos en este gran día. ¡Te tendremos muy presente en nuestro corazón y esperamos compartir pronto en otra ocasión! Con mucho cariño, Kimberly & Jhon. ✨`;
     const encodedText = encodeURIComponent(text);
     const cleanPhone = guest.phone ? guest.phone.replace(/[^0-9]/g, '') : '';
     const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedText}`;
@@ -830,7 +854,13 @@ export default function GuestAdmin() {
               </div>
 
               {/* INVITATIONS DATA TABLE (DESKTOP) & GRID (MOBILE) */}
-              <div className="bg-zinc-900 border border-zinc-800 rounded-sm overflow-hidden shadow-xl">
+              <div className="bg-zinc-900 border border-zinc-800 rounded-sm overflow-hidden shadow-xl relative min-h-[150px]">
+                {isLoadingGuests && (
+                  <div className="absolute inset-0 bg-zinc-950/70 backdrop-blur-[2px] flex flex-col items-center justify-center z-10 py-10">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gold-500 mb-2"></div>
+                    <span className="text-sm font-sans text-zinc-400">Sincronizando con base de datos...</span>
+                  </div>
+                )}
                 
                 {/* Desktop View */}
                 <div className="hidden md:block overflow-x-auto">
@@ -963,9 +993,16 @@ export default function GuestAdmin() {
                                 <button
                                   onClick={() => handleShareWhatsApp(guest)}
                                   className="p-1.5 bg-zinc-950 hover:bg-emerald-950/40 border border-zinc-800 hover:border-emerald-800 text-emerald-400 transition-all rounded-xs flex items-center justify-center cursor-pointer"
-                                  title="Enviar por WhatsApp"
+                                  title="Enviar Enlace por WhatsApp"
                                 >
                                   <MessageSquare className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleShareNonConfirmationWhatsApp(guest)}
+                                  className="p-1.5 bg-zinc-950 hover:bg-amber-950/40 border border-zinc-800 hover:border-amber-800 text-amber-500 transition-all rounded-xs flex items-center justify-center cursor-pointer"
+                                  title="Enviar Agradecimiento por No Asistencia (WhatsApp)"
+                                >
+                                  <Heart className="w-3.5 h-3.5" />
                                 </button>
                               </div>
                             </td>
@@ -1081,6 +1118,13 @@ export default function GuestAdmin() {
                               title="WhatsApp"
                             >
                               <MessageSquare className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleShareNonConfirmationWhatsApp(guest)}
+                              className="p-1 bg-zinc-900 hover:bg-amber-950/40 border border-zinc-800 hover:border-amber-800 text-amber-500 transition-all rounded-xs flex items-center justify-center cursor-pointer"
+                              title="Agradecimiento No Asistencia (WhatsApp)"
+                            >
+                              <Heart className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </div>

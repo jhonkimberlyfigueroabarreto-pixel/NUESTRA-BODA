@@ -4,9 +4,10 @@
  */
 
 import React, { useState, useEffect } from "react";
-import { Check, Send, AlertCircle, Heart, User, Search, RefreshCw, Star, HelpCircle, Phone, Sparkles, Bell } from "lucide-react";
+import { Check, Send, AlertCircle, Heart, User, Search, RefreshCw, Star, HelpCircle, Phone, Sparkles, Bell, Mail } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { RSVP, AdminGuest } from "../types";
+import { getGuests, updateGuest } from "../lib/guestsService";
 
 // =========================================================================
 // PRE-ASSIGNED GUEST REGISTRY (ADMIN CONTROL)
@@ -14,9 +15,11 @@ import { RSVP, AdminGuest } from "../types";
 // This is easily maintainable and can also be queried from Firebase later.
 // =========================================================================
 interface PreAssignedGuest {
+  id?: string;
   fullName: string;
   quota: number;
   welcomeMessage: string;
+  guestObj?: AdminGuest;
 }
 
 const PRE_ASSIGNED_GUESTS: PreAssignedGuest[] = [
@@ -75,7 +78,7 @@ export const RSVP_CONFIG = {
   sectionTagline: "CONFIRMACIÓN DE ASISTENCIA",
   sectionTitle: "Acompáñanos en Nuestro Día",
   subtitle: "Por favor, busca tu nombre y apellido para confirmar tus cupos reservados.",
-  deadlineText: "Por favor, confírmanos antes del 10 de Julio de 2026.",
+  deadlineText: "Fecha máxima para confirmar asistencia: 15 de Julio de 2026.",
   
   successTitle: "¡Confirmación Guardada!",
   successSubtitle: "Muchas gracias, hemos recibido tu respuesta correctamente.",
@@ -88,10 +91,24 @@ export default function RSVPForm() {
   const [selectedGuest, setSelectedGuest] = useState<PreAssignedGuest | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
   
+  // Live Firestore database states
+  const [liveGuests, setLiveGuests] = useState<AdminGuest[]>([]);
+  const [isLoadingGuests, setIsLoadingGuests] = useState(true);
+
   // Personalized invitation states
   const [personalizedGuest, setPersonalizedGuest] = useState<AdminGuest | null>(null);
   const [isPersonalized, setIsPersonalized] = useState(false);
   const [wantsReminder, setWantsReminder] = useState(false);
+
+  // Simulation mode for testing past-deadline experience
+  const [simulateDeadline, setSimulateDeadline] = useState(false);
+
+  // Check if RSVP deadline has passed
+  const isDeadlinePassed = () => {
+    if (simulateDeadline) return true;
+    const deadline = new Date("2026-07-16T00:00:00");
+    return new Date() >= deadline;
+  };
 
   // Confirmation state
   const [attending, setAttending] = useState<boolean | null>(null);
@@ -101,51 +118,64 @@ export default function RSVPForm() {
   const [errorMsg, setErrorMsg] = useState("");
   const [successAnimation, setSuccessAnimation] = useState(false);
 
-  // Load existing RSVP and check URL for invitation code
+  // Load existing RSVP and check URL for invitation code using Firestore
   useEffect(() => {
-    // 1. Check URL parameters
-    const params = new URLSearchParams(window.location.search);
-    const guestCode = params.get("invitado") || params.get("code");
-    
-    // Load existing RSVP if any
-    const saved = localStorage.getItem("wedding_rsvp");
-    let loadedRsvp: RSVP | null = null;
-    if (saved) {
+    const loadData = async () => {
+      setIsLoadingGuests(true);
       try {
-        loadedRsvp = JSON.parse(saved);
-        setActiveRsvp(loadedRsvp);
-      } catch (e) {
-        console.error("Error reading saved RSVP", e);
-      }
-    }
+        const list = await getGuests();
+        setLiveGuests(list);
 
-    if (guestCode) {
-      const codeUpper = guestCode.trim().toUpperCase();
-      const savedGuests = localStorage.getItem("wedding_admin_guests");
-      let guestsList: AdminGuest[] = [];
-      if (savedGuests) {
-        try {
-          guestsList = JSON.parse(savedGuests);
-        } catch (e) {
-          console.error(e);
+        // 1. Check URL parameters
+        const params = new URLSearchParams(window.location.search);
+        const guestCode = params.get("invitado") || params.get("code");
+        
+        // Load existing RSVP if any
+        const saved = localStorage.getItem("wedding_rsvp");
+        let loadedRsvp: RSVP | null = null;
+        if (saved) {
+          try {
+            loadedRsvp = JSON.parse(saved);
+            setActiveRsvp(loadedRsvp);
+          } catch (e) {
+            console.error("Error reading saved RSVP", e);
+          }
         }
-      }
-      
-      const matched = guestsList.find(g => g.code?.toUpperCase() === codeUpper);
-      if (matched) {
-        setPersonalizedGuest(matched);
-        setIsPersonalized(true);
-        setAttending(matched.status === "Confirmado" ? true : matched.status === "No asiste" ? false : true);
-        setWantsReminder(matched.wantsReminder || false);
-        setMessage(matched.notes || "");
 
-        // If the URL has a code, but the browser has a saved RSVP for a different guest,
-        // we bypass the saved RSVP to let them confirm for the URL guest code.
-        if (loadedRsvp && loadedRsvp.code !== matched.code) {
-          setActiveRsvp(null);
+        if (guestCode) {
+          const codeUpper = guestCode.trim().toUpperCase();
+          const matched = list.find(g => g.code?.toUpperCase() === codeUpper);
+          if (matched) {
+            setPersonalizedGuest(matched);
+            setIsPersonalized(true);
+            setAttending(matched.status === "Confirmado" ? true : matched.status === "No asiste" ? false : true);
+            setWantsReminder(matched.wantsReminder || false);
+            setMessage(matched.notes || "");
+
+            // If the URL has a code, but the browser has a saved RSVP for a different guest,
+            // we bypass the saved RSVP to let them confirm for the URL guest code.
+            if (loadedRsvp && loadedRsvp.code !== matched.code) {
+              setActiveRsvp(null);
+            }
+          }
         }
+      } catch (err) {
+        console.error("Error loading guests from Firestore:", err);
+      } finally {
+        setIsLoadingGuests(false);
       }
-    }
+    };
+
+    loadData();
+
+    // Listen to admin updates in case status changes
+    const handleUpdate = () => {
+      loadData();
+    };
+    window.addEventListener("wedding_admin_guests_updated", handleUpdate);
+    return () => {
+      window.removeEventListener("wedding_admin_guests_updated", handleUpdate);
+    };
   }, []);
 
   // Run the automatic search
@@ -161,8 +191,17 @@ export default function RSVPForm() {
       return;
     }
 
-    // Filter registry with fuzzy match
-    const matches = PRE_ASSIGNED_GUESTS.filter(g => {
+    // Map live guests from Firestore to the PreAssignedGuest format
+    const mappedGuests: PreAssignedGuest[] = liveGuests.map(g => ({
+      id: g.id,
+      fullName: `${g.firstName} ${g.lastName}`,
+      quota: g.quota,
+      welcomeMessage: `¡Hola ${g.firstName}! Nos honra profundamente tenerte con nosotros en este gran día. Tienes ${g.quota} ${g.quota === 1 ? 'cupo asignado' : 'cupos asignados'}.`,
+      guestObj: g
+    }));
+
+    // Filter registry with fuzzy match on the dynamic list
+    const matches = mappedGuests.filter(g => {
       const nameNorm = normalizeString(g.fullName);
       return nameNorm.includes(query) || query.includes(nameNorm);
     });
@@ -205,28 +244,35 @@ export default function RSVPForm() {
 
       const attendanceStatus = attending ? "Confirmado" : "No asiste";
 
-      // 1. Update the guest in wedding_admin_guests database so the admin sees it in real-time!
-      const saved = localStorage.getItem("wedding_admin_guests");
-      if (saved) {
-        try {
-          const guestsList: AdminGuest[] = JSON.parse(saved);
-          const updated = guestsList.map(g => {
-            if (g.id === personalizedGuest.id) {
-              return {
-                ...g,
-                status: attendanceStatus,
-                wantsReminder: wantsReminder,
-                notes: message.trim() || undefined
-              };
-            }
-            return g;
-          });
-          localStorage.setItem("wedding_admin_guests", JSON.stringify(updated));
-          // Dispatch event to update the admin list if open
-          window.dispatchEvent(new Event("wedding_admin_guests_updated"));
-        } catch (e) {
-          console.error("Error updating admin guests", e);
+      // 1. Update the guest in Firestore database
+      const updatedGuest: AdminGuest = {
+        ...personalizedGuest,
+        status: attendanceStatus,
+        wantsReminder: wantsReminder,
+        notes: message.trim() || undefined
+      };
+
+      try {
+        await updateGuest(updatedGuest);
+        
+        // Also update local cache
+        const saved = localStorage.getItem("wedding_admin_guests");
+        if (saved) {
+          try {
+            const guestsList: AdminGuest[] = JSON.parse(saved);
+            const updated = guestsList.map(g => g.id === personalizedGuest.id ? updatedGuest : g);
+            localStorage.setItem("wedding_admin_guests", JSON.stringify(updated));
+          } catch (err) {
+            console.error("Local cache sync error:", err);
+          }
         }
+        
+        // Dispatch event to update the admin list if open
+        window.dispatchEvent(new Event("wedding_admin_guests_updated"));
+      } catch (err) {
+        console.error("Error updating RSVP in Firestore:", err);
+        setErrorMsg("Ocurrió un error al registrar la confirmación en la base de datos persistente. Inténtalo de nuevo.");
+        return;
       }
 
       // 2. Save active RSVP to wedding_rsvp so RSVP section shows as "Already Confirmed"
@@ -254,16 +300,48 @@ export default function RSVPForm() {
         setSuccessAnimation(true);
         setTimeout(() => setSuccessAnimation(false), 4500);
       } catch (err) {
-        setErrorMsg("Ocurrió un error al registrar la confirmación. Inténtalo de nuevo.");
+        setErrorMsg("Ocurrió un error al registrar la confirmación localmente. Inténtalo de nuevo.");
         console.error(err);
       }
       return;
     }
 
     // Standard non-personalized flow
-    if (!selectedGuest) return;
+    if (!selectedGuest || !selectedGuest.guestObj) return;
     if (attending === null) {
       setErrorMsg("Por favor, selecciona si asistirás o no.");
+      return;
+    }
+
+    const attendanceStatus = attending ? "Confirmado" : "No asiste";
+
+    // 1. Update guest in Firestore
+    const updatedGuest: AdminGuest = {
+      ...selectedGuest.guestObj,
+      status: attendanceStatus,
+      wantsReminder: wantsReminder,
+      notes: message.trim() || undefined
+    };
+
+    try {
+      await updateGuest(updatedGuest);
+
+      // Also update local cache
+      const saved = localStorage.getItem("wedding_admin_guests");
+      if (saved) {
+        try {
+          const guestsList: AdminGuest[] = JSON.parse(saved);
+          const updated = guestsList.map(g => g.id === selectedGuest.guestObj.id ? updatedGuest : g);
+          localStorage.setItem("wedding_admin_guests", JSON.stringify(updated));
+        } catch (err) {
+          console.error("Local cache sync error:", err);
+        }
+      }
+
+      window.dispatchEvent(new Event("wedding_admin_guests_updated"));
+    } catch (err) {
+      console.error("Error updating guest RSVP in Firestore:", err);
+      setErrorMsg("Ocurrió un error al registrar la confirmación en la base de datos persistente. Inténtalo de nuevo.");
       return;
     }
 
@@ -437,6 +515,66 @@ export default function RSVPForm() {
                   <span>Modificar mi Respuesta</span>
                 </button>
               </motion.div>
+            ) : ((isPersonalized && personalizedGuest) || selectedGuest) && isDeadlinePassed() ? (
+              
+              // =========================================================================
+              // SCREEN 4: POST-DEADLINE THANK YOU / WE UNDERSTAND CARD
+              // =========================================================================
+              <motion.div
+                key="deadline-thanks-screen"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                className="text-center py-6"
+              >
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-50 border border-amber-300 text-amber-600 mb-6 shadow-md">
+                  <Heart className="w-7 h-7 stroke-[2] text-gold-600 fill-current animate-pulse" />
+                </div>
+
+                <h3 className="font-serif text-2xl text-zinc-900 font-light mb-1.5">
+                  ¡Muchísimas Gracias!
+                </h3>
+                <p className="font-sans text-[10px] tracking-widest uppercase text-gold-600 font-bold mb-6">
+                  Kimberly & Jhon
+                </p>
+
+                {/* Envelope Letter Style Card */}
+                <div className="bg-white p-6 sm:p-8 border border-gold-200 rounded-sm text-center relative max-w-md mx-auto mb-8 shadow-sm leading-relaxed font-serif">
+                  <div className="absolute top-0 left-0 right-0 h-[3px] bg-gold-400" />
+                  
+                  <p className="text-zinc-800 text-base font-light mb-4">
+                    ¡Hola, <strong className="font-medium text-zinc-950">
+                      {isPersonalized && personalizedGuest 
+                        ? `${personalizedGuest.firstName} ${personalizedGuest.lastName}` 
+                        : selectedGuest?.fullName}
+                    </strong>! 💕
+                  </p>
+
+                  <p className="text-zinc-600 text-xs sm:text-sm italic leading-relaxed mb-4">
+                    &ldquo;Al haber concluido la fecha máxima de confirmación de asistencia (15 de Julio de 2026), queremos agradecerte de todo corazón tu cariño e interés en nuestro gran día.&rdquo;
+                  </p>
+
+                  <p className="text-zinc-600 text-xs sm:text-sm leading-relaxed mb-6 font-light">
+                    Entendemos perfectamente que por diversos compromisos no podrás acompañarnos físicamente en esta ocasión. Te llevaremos con mucho cariño en nuestros corazones y esperamos compartir contigo pronto en una próxima oportunidad.
+                  </p>
+
+                  <div className="pt-4 border-t border-gold-100 flex flex-col items-center">
+                    <span className="font-serif italic text-gold-700 text-sm">Con todo nuestro cariño,</span>
+                    <span className="font-serif text-lg text-zinc-800 tracking-wide mt-1">Kimberly & Jhon</span>
+                  </div>
+                </div>
+
+                {/* Back to search link */}
+                {!isPersonalized && (
+                  <button
+                    type="button"
+                    onClick={handleBackToSearch}
+                    className="inline-flex items-center space-x-2 px-6 py-3 border border-zinc-300 text-zinc-600 text-xs tracking-wider uppercase transition-colors hover:bg-zinc-50 cursor-pointer font-semibold rounded-sm"
+                  >
+                    <span>Buscar otro nombre</span>
+                  </button>
+                )}
+              </motion.div>
             ) : (isPersonalized && personalizedGuest) || selectedGuest ? (
               
               // =========================================================================
@@ -592,6 +730,20 @@ export default function RSVPForm() {
                 onSubmit={handleSearchSubmit}
                 className="space-y-6"
               >
+                {/* Past Deadline Alert Notice */}
+                {isDeadlinePassed() && (
+                  <div className="bg-amber-50/60 border border-amber-200 p-4 rounded-sm text-left flex items-start space-x-3 mb-6">
+                    <Bell className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5 animate-bounce" />
+                    <div className="space-y-1">
+                      <span className="font-sans text-[10px] uppercase tracking-widest text-amber-800 font-bold block">
+                        Plazo de Confirmación Concluido
+                      </span>
+                      <p className="font-sans text-xs text-amber-700 leading-relaxed">
+                        La fecha máxima para confirmar asistencia fue el <strong>15 de Julio de 2026</strong>. Si no lograste confirmar a tiempo, puedes buscar tu nombre o usar tu enlace para recibir un mensaje especial de agradecimiento de parte de los novios.
+                      </p>
+                    </div>
+                  </div>
+                )}
                 {/* Search field */}
                 <div className="text-left space-y-2">
                   <label className="font-sans text-[10px] uppercase tracking-widest text-zinc-500 font-bold flex items-center space-x-1">
@@ -681,15 +833,33 @@ export default function RSVPForm() {
                 </AnimatePresence>
 
                 {/* Friendly Test instructions footer */}
-                <div className="pt-4 border-t border-gold-100 flex items-start space-x-3 text-left opacity-90">
-                  <Star className="w-4 h-4 text-gold-500 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-sans text-[9px] uppercase tracking-widest text-gold-600 font-bold block mb-0.5">
-                      Prueba la Experiencia (Demostración)
-                    </span>
-                    <p className="font-sans text-[11px] text-zinc-500 leading-relaxed">
-                      Puedes buscar nombres de prueba como: <strong className="text-zinc-700">Kimberly Figueroa</strong>, <strong className="text-zinc-700">Andrés Mendoza</strong>, <strong className="text-zinc-700">Familia Gómez</strong>, o <strong className="text-zinc-700">Familia Figueroa Barreto</strong>. El sistema buscará sus cupos asignados de manera automática.
-                    </p>
+                <div className="pt-4 border-t border-gold-100 text-left opacity-90 space-y-3">
+                  <div className="flex items-start space-x-3">
+                    <Star className="w-4 h-4 text-gold-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-sans text-[9px] uppercase tracking-widest text-gold-600 font-bold block mb-0.5">
+                        Prueba la Experiencia (Demostración)
+                      </span>
+                      <p className="font-sans text-[11px] text-zinc-500 leading-relaxed">
+                        Puedes buscar nombres de prueba como: <strong className="text-zinc-700">Kimberly Figueroa</strong>, <strong className="text-zinc-700">Andrés Mendoza</strong>, <strong className="text-zinc-700">Familia Gómez</strong>, o <strong className="text-zinc-700">Familia Figueroa Barreto</strong>. El sistema buscará sus cupos asignados de manera automática.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Toggle deadline simulation for testing */}
+                  <div className="pt-2 border-t border-dashed border-gold-200 flex items-center justify-between">
+                    <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-500">Prueba de Fecha Límite:</span>
+                    <button
+                      type="button"
+                      onClick={() => setSimulateDeadline(prev => !prev)}
+                      className={`px-3 py-1.5 text-[10px] rounded-full uppercase tracking-wider font-bold border transition-colors cursor-pointer ${
+                        simulateDeadline
+                          ? "bg-amber-100 text-amber-800 border-amber-300"
+                          : "bg-zinc-100 text-zinc-600 border-zinc-200 hover:bg-gold-50/50 hover:border-gold-300"
+                      }`}
+                    >
+                      {simulateDeadline ? "🕒 Modo Post-Fecha Límite Activo" : "🕒 Simular Fecha Límite Pasada"}
+                    </button>
                   </div>
                 </div>
 

@@ -1,0 +1,28 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /guests/{guestId} {
+      allow read: if true;
+      allow create, update: if isValidGuest(request.resource.data);
+      allow delete: if true;
+    }
+
+    function isValidGuest(data) {
+      return data.id is string
+        && data.firstName is string
+        && data.firstName.size() > 0
+        && data.lastName is string
+        && data.lastName.size() > 0
+        && data.quota is int
+        && data.quota >= 1
+        && (data.status == 'Pendiente' || data.status == 'Confirmado' || data.status == 'No asiste')
+        && data.code is string
+        && data.code.size() > 0
+        && (!('phone' in data) || data.phone is string)
+        && (!('email' in data) || data.email is string)
+        && (!('tableName' in data) || data.tableName is string)
+        && (!('notes' in data) || data.notes is string)
+        && (!('wantsReminder' in data) || data.wantsReminder is bool);
+    }
+  }
+}

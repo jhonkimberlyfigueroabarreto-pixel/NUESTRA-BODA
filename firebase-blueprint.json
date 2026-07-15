@@ -1,0 +1,63 @@
+{
+  "entities": {
+    "Guest": {
+      "title": "Guest",
+      "description": "A guest invited to the wedding, including their rsvp status and assigned table.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the guest document."
+        },
+        "firstName": {
+          "type": "string",
+          "description": "First name of the guest."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "Last name of the guest."
+        },
+        "phone": {
+          "type": "string",
+          "description": "Phone number of the guest."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the guest."
+        },
+        "quota": {
+          "type": "integer",
+          "description": "Number of seats reserved for this guest."
+        },
+        "tableName": {
+          "type": "string",
+          "description": "Name of the table assigned to the guest."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Pendiente", "Confirmado", "No asiste"],
+          "description": "RSVP status of the guest."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Optional notes or dedication/allergy details from the RSVP."
+        },
+        "code": {
+          "type": "string",
+          "description": "Unique RSVP access code for the guest."
+        },
+        "wantsReminder": {
+          "type": "boolean",
+          "description": "Whether the guest requested email/whatsapp reminders."
+        }
+      },
+      "required": ["id", "firstName", "lastName", "quota", "status", "code"]
+    }
+  },
+  "firestore": {
+    "/guests/{guestId}": {
+      "schema": "Guest",
+      "description": "Collection of wedding guests and RSVPs."
+    }
+  }
+}
