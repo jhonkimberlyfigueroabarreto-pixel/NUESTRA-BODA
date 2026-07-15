@@ -353,7 +353,7 @@ export default function GuestAdmin() {
           quota: formQuota,
           tableName: formTableName,
           status: formStatus,
-          notes: formNotes.trim() || undefined,
+          notes: formNotes.trim(),
           wantsReminder: editingGuest.wantsReminder || false
         };
 
@@ -370,7 +370,7 @@ export default function GuestAdmin() {
           quota: formQuota,
           tableName: formTableName,
           status: formStatus,
-          notes: formNotes.trim() || undefined,
+          notes: formNotes.trim(),
           wantsReminder: false
         };
 
