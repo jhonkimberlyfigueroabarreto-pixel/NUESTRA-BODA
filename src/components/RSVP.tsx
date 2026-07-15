@@ -78,7 +78,7 @@ export const RSVP_CONFIG = {
   sectionTagline: "CONFIRMACIÓN DE ASISTENCIA",
   sectionTitle: "Acompáñanos en Nuestro Día",
   subtitle: "Por favor, busca tu nombre y apellido para confirmar tus cupos reservados.",
-  deadlineText: "Fecha máxima para confirmar asistencia: 15 de Julio de 2026.",
+  deadlineText: "Fecha máxima para confirmar asistencia: 18 de Julio de 2026.",
   
   successTitle: "¡Confirmación Guardada!",
   successSubtitle: "Muchas gracias, hemos recibido tu respuesta correctamente.",
@@ -106,7 +106,7 @@ export default function RSVPForm() {
   // Check if RSVP deadline has passed
   const isDeadlinePassed = () => {
     if (simulateDeadline) return true;
-    const deadline = new Date("2026-07-16T00:00:00");
+    const deadline = new Date("2026-07-19T00:00:00");
     return new Date() >= deadline;
   };
 
@@ -528,7 +528,7 @@ export default function RSVPForm() {
                   </p>
 
                   <p className="text-zinc-600 text-xs sm:text-sm italic leading-relaxed mb-4">
-                    &ldquo;Al haber concluido la fecha máxima de confirmación de asistencia (15 de Julio de 2026), queremos agradecerte de todo corazón tu cariño e interés en nuestro gran día.&rdquo;
+                    &ldquo;Al haber concluido la fecha máxima de confirmación de asistencia (18 de Julio de 2026), queremos agradecerte de todo corazón tu cariño e interés en nuestro gran día.&rdquo;
                   </p>
 
                   <p className="text-zinc-600 text-xs sm:text-sm leading-relaxed mb-6 font-light">
@@ -716,7 +716,7 @@ export default function RSVPForm() {
                         Plazo de Confirmación Concluido
                       </span>
                       <p className="font-sans text-xs text-amber-700 leading-relaxed">
-                        La fecha máxima para confirmar asistencia fue el <strong>15 de Julio de 2026</strong>. Si no lograste confirmar a tiempo, puedes buscar tu nombre o usar tu enlace para recibir un mensaje especial de agradecimiento de parte de los novios.
+                        La fecha máxima para confirmar asistencia fue el <strong>18 de Julio de 2026</strong>. Si no lograste confirmar a tiempo, puedes buscar tu nombre o usar tu enlace para recibir un mensaje especial de agradecimiento de parte de los novios.
                       </p>
                     </div>
                   </div>

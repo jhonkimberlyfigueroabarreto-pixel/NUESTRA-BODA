@@ -459,7 +459,7 @@ export default function GuestAdmin() {
   };
 
   const handleShareNonConfirmationWhatsApp = (guest: AdminGuest) => {
-    const text = `¡Hola ${guest.firstName}! 💕 Queríamos agradecerte de todo corazón tu cariño y tus buenos deseos para nuestra boda. Al haber concluido la fecha máxima de confirmación (15 de Julio de 2026) y no registrarse tu respuesta, entendemos perfectamente que por diferentes motivos no podrás acompañarnos en este gran día. ¡Te tendremos muy presente en nuestro corazón y esperamos compartir pronto en otra ocasión! Con mucho cariño, Kimberly & Jhon. ✨`;
+    const text = `¡Hola ${guest.firstName}! 💕 Queríamos agradecerte de todo corazón tu cariño y tus buenos deseos para nuestra boda. Al haber concluido la fecha máxima de confirmación (18 de Julio de 2026) y no registrarse tu respuesta, entendemos perfectamente que por diferentes motivos no podrás acompañarnos en este gran día. ¡Te tendremos muy presente en nuestro corazón y esperamos compartir pronto en otra ocasión! Con mucho cariño, Kimberly & Jhon. ✨`;
     const encodedText = encodeURIComponent(text);
     const cleanPhone = guest.phone ? guest.phone.replace(/[^0-9]/g, '') : '';
     const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedText}`;
@@ -484,8 +484,8 @@ export default function GuestAdmin() {
     const fullName = `${guest.firstName} ${guest.lastName}`.toLowerCase();
     const query = searchQuery.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     const matchesSearch = fullName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(query) || 
-                          guest.phone.includes(query) || 
-                          guest.email.toLowerCase().includes(query);
+                          (guest.phone && guest.phone.includes(query)) || 
+                          (guest.email && guest.email.toLowerCase().includes(query));
 
     const matchesStatus = statusFilter === "todos" || guest.status === statusFilter;
     const matchesTable = tableFilter === "todos" || guest.tableName === tableFilter;
