@@ -7,6 +7,7 @@ import React, { useState, useEffect } from "react";
 import { Search, UserCheck, Armchair, HelpCircle, Users } from "lucide-react";
 import { TABLES_DATA } from "../data";
 import { Table } from "../types";
+import { getTables } from "../lib/firestoreService";
 
 export default function TableFinder() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -15,54 +16,30 @@ export default function TableFinder() {
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
 
-  // Sync with live tables data in localStorage (from admin edits) or fallback to initial seed
+  // Sync with live tables data in Firestore
   useEffect(() => {
-    const savedTables = localStorage.getItem("wedding_admin_tables");
-    if (savedTables) {
+    const fetchTables = async () => {
       try {
-        const parsed = JSON.parse(savedTables);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setTablesData(parsed);
-          return;
-        }
-      } catch (e) {
-        console.error("Error loading tables inside finder", e);
-      }
-    }
-    setTablesData(TABLES_DATA);
-  }, []);
-
-  // Listen to localstorage updates in real-time if administrators make edits
-  useEffect(() => {
-    const handleStorageChange = () => {
-      const savedTables = localStorage.getItem("wedding_admin_tables");
-      if (savedTables) {
-        try {
-          const parsed = JSON.parse(savedTables);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setTablesData(parsed);
-            
-            // Re-sync selected table if it changed
-            if (selectedTable) {
-              const updatedSelected = parsed.find(t => t.id === selectedTable.id);
-              if (updatedSelected) {
-                setSelectedTable(updatedSelected);
-              }
-            }
+        const list = await getTables();
+        setTablesData(list);
+        
+        // Re-sync selected table if it changed
+        if (selectedTable) {
+          const updatedSelected = list.find(t => t.id === selectedTable.id);
+          if (updatedSelected) {
+            setSelectedTable(updatedSelected);
           }
-        } catch (e) {
-          console.error(e);
         }
+      } catch (err) {
+        console.error("Error loading tables inside finder:", err);
       }
     };
 
-    window.addEventListener("storage", handleStorageChange);
-    // Custom trigger event for changes on the same window
-    window.addEventListener("wedding_tables_updated", handleStorageChange);
+    fetchTables();
 
+    window.addEventListener("wedding_tables_updated", fetchTables);
     return () => {
-      window.removeEventListener("storage", handleStorageChange);
-      window.removeEventListener("wedding_tables_updated", handleStorageChange);
+      window.removeEventListener("wedding_tables_updated", fetchTables);
     };
   }, [selectedTable]);
 

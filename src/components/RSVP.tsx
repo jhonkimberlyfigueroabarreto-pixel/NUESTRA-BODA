@@ -129,18 +129,6 @@ export default function RSVPForm() {
         // 1. Check URL parameters
         const params = new URLSearchParams(window.location.search);
         const guestCode = params.get("invitado") || params.get("code");
-        
-        // Load existing RSVP if any
-        const saved = localStorage.getItem("wedding_rsvp");
-        let loadedRsvp: RSVP | null = null;
-        if (saved) {
-          try {
-            loadedRsvp = JSON.parse(saved);
-            setActiveRsvp(loadedRsvp);
-          } catch (e) {
-            console.error("Error reading saved RSVP", e);
-          }
-        }
 
         if (guestCode) {
           const codeUpper = guestCode.trim().toUpperCase();
@@ -152,9 +140,21 @@ export default function RSVPForm() {
             setWantsReminder(matched.wantsReminder || false);
             setMessage(matched.notes || "");
 
-            // If the URL has a code, but the browser has a saved RSVP for a different guest,
-            // we bypass the saved RSVP to let them confirm for the URL guest code.
-            if (loadedRsvp && loadedRsvp.code !== matched.code) {
+            // If the guest from URL has already submitted their RSVP, load it in memory
+            if (matched.status === "Confirmado" || matched.status === "No asiste") {
+              const rsvpData: RSVP = {
+                id: "rsvp-personalized-" + matched.id,
+                fullName: `${matched.firstName} ${matched.lastName}`,
+                attending: matched.status === "Confirmado",
+                guestsCount: matched.status === "Confirmado" ? matched.quota : 0,
+                phone: matched.phone || "Registro Automatizado",
+                message: matched.notes || "",
+                code: matched.code,
+                wantsReminder: matched.wantsReminder || false,
+                timestamp: "Confirmación guardada en base de datos",
+              };
+              setActiveRsvp(rsvpData);
+            } else {
               setActiveRsvp(null);
             }
           }
@@ -210,8 +210,7 @@ export default function RSVPForm() {
     
     // Auto-select if there is exactly 1 match to make it frictionless
     if (matches.length === 1) {
-      setSelectedGuest(matches[0]);
-      setAttending(true); // Default selection
+      handleSelectGuest(matches[0]);
     } else {
       setSelectedGuest(null);
     }
@@ -219,8 +218,29 @@ export default function RSVPForm() {
 
   const handleSelectGuest = (guest: PreAssignedGuest) => {
     setSelectedGuest(guest);
-    setAttending(true); // Default to Yes
     setErrorMsg("");
+
+    if (guest.guestObj) {
+      const g = guest.guestObj;
+      if (g.status === "Confirmado" || g.status === "No asiste") {
+        const rsvpData: RSVP = {
+          id: "rsvp-" + normalizeString(guest.fullName).replace(/\s+/g, "-"),
+          fullName: guest.fullName,
+          attending: g.status === "Confirmado",
+          guestsCount: g.status === "Confirmado" ? guest.quota : 0,
+          phone: g.phone || "Registro Automatizado",
+          message: g.notes || "",
+          code: g.code,
+          wantsReminder: g.wantsReminder || false,
+          timestamp: "Confirmación guardada en base de datos",
+        };
+        setActiveRsvp(rsvpData);
+        return;
+      }
+    }
+
+    setAttending(true); // Default to Yes
+    setActiveRsvp(null);
   };
 
   const handleBackToSearch = () => {
@@ -244,7 +264,6 @@ export default function RSVPForm() {
 
       const attendanceStatus = attending ? "Confirmado" : "No asiste";
 
-      // 1. Update the guest in Firestore database
       const updatedGuest: AdminGuest = {
         ...personalizedGuest,
         status: attendanceStatus,
@@ -254,20 +273,6 @@ export default function RSVPForm() {
 
       try {
         await updateGuest(updatedGuest);
-        
-        // Also update local cache
-        const saved = localStorage.getItem("wedding_admin_guests");
-        if (saved) {
-          try {
-            const guestsList: AdminGuest[] = JSON.parse(saved);
-            const updated = guestsList.map(g => g.id === personalizedGuest.id ? updatedGuest : g);
-            localStorage.setItem("wedding_admin_guests", JSON.stringify(updated));
-          } catch (err) {
-            console.error("Local cache sync error:", err);
-          }
-        }
-        
-        // Dispatch event to update the admin list if open
         window.dispatchEvent(new Event("wedding_admin_guests_updated"));
       } catch (err) {
         console.error("Error updating RSVP in Firestore:", err);
@@ -275,7 +280,6 @@ export default function RSVPForm() {
         return;
       }
 
-      // 2. Save active RSVP to wedding_rsvp so RSVP section shows as "Already Confirmed"
       const rsvpData: RSVP = {
         id: "rsvp-personalized-" + personalizedGuest.id,
         fullName: `${personalizedGuest.firstName} ${personalizedGuest.lastName}`,
@@ -294,15 +298,9 @@ export default function RSVPForm() {
         }),
       };
 
-      try {
-        localStorage.setItem("wedding_rsvp", JSON.stringify(rsvpData));
-        setActiveRsvp(rsvpData);
-        setSuccessAnimation(true);
-        setTimeout(() => setSuccessAnimation(false), 4500);
-      } catch (err) {
-        setErrorMsg("Ocurrió un error al registrar la confirmación localmente. Inténtalo de nuevo.");
-        console.error(err);
-      }
+      setActiveRsvp(rsvpData);
+      setSuccessAnimation(true);
+      setTimeout(() => setSuccessAnimation(false), 4500);
       return;
     }
 
@@ -315,7 +313,6 @@ export default function RSVPForm() {
 
     const attendanceStatus = attending ? "Confirmado" : "No asiste";
 
-    // 1. Update guest in Firestore
     const updatedGuest: AdminGuest = {
       ...selectedGuest.guestObj,
       status: attendanceStatus,
@@ -325,19 +322,6 @@ export default function RSVPForm() {
 
     try {
       await updateGuest(updatedGuest);
-
-      // Also update local cache
-      const saved = localStorage.getItem("wedding_admin_guests");
-      if (saved) {
-        try {
-          const guestsList: AdminGuest[] = JSON.parse(saved);
-          const updated = guestsList.map(g => g.id === selectedGuest.guestObj.id ? updatedGuest : g);
-          localStorage.setItem("wedding_admin_guests", JSON.stringify(updated));
-        } catch (err) {
-          console.error("Local cache sync error:", err);
-        }
-      }
-
       window.dispatchEvent(new Event("wedding_admin_guests_updated"));
     } catch (err) {
       console.error("Error updating guest RSVP in Firestore:", err);
@@ -362,15 +346,9 @@ export default function RSVPForm() {
       }),
     };
 
-    try {
-      localStorage.setItem("wedding_rsvp", JSON.stringify(rsvpData));
-      setActiveRsvp(rsvpData);
-      setSuccessAnimation(true);
-      setTimeout(() => setSuccessAnimation(false), 4500);
-    } catch (err) {
-      setErrorMsg("Ocurrió un error al registrar la confirmación. Inténtalo de nuevo.");
-      console.error(err);
-    }
+    setActiveRsvp(rsvpData);
+    setSuccessAnimation(true);
+    setTimeout(() => setSuccessAnimation(false), 4500);
   };
 
   const handleResetRsvp = () => {
@@ -379,7 +357,6 @@ export default function RSVPForm() {
       : "¿Deseas modificar o registrar otra confirmación?";
       
     if (window.confirm(confirmMessage)) {
-      localStorage.removeItem("wedding_rsvp");
       setActiveRsvp(null);
       if (!isPersonalized) {
         handleBackToSearch();

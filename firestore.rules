@@ -7,6 +7,30 @@ service cloud.firestore {
       allow delete: if true;
     }
 
+    match /tables/{tableId} {
+      allow read, write: if true;
+    }
+
+    match /rsvps/{rsvpId} {
+      allow read, write: if true;
+    }
+
+    match /config/{configId} {
+      allow read, write: if true;
+    }
+
+    match /gallery_photos/{photoId} {
+      allow read, write: if true;
+    }
+
+    match /guest_photos/{photoId} {
+      allow read, write: if true;
+    }
+
+    match /guestbook/{messageId} {
+      allow read, write: if true;
+    }
+
     function isValidGuest(data) {
       return data.id is string
         && data.firstName is string

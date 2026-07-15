@@ -8,6 +8,7 @@ import { motion } from "motion/react";
 import { Heart, Calendar, Sparkles } from "lucide-react";
 import ringsStoryImage from "../assets/images/wedding_rings_story_1784056643278.jpg";
 import lakeStoryImage from "../assets/images/wedding_story_lake_couple_1784063740303.jpg";
+import { getOurStory } from "../lib/firestoreService";
 
 // ==========================================
 // EDITABLE CONTENT SECTION
@@ -56,24 +57,19 @@ export default function OurStory() {
   const [milestones, setMilestones] = useState(TIMELINE_MILESTONES);
 
   useEffect(() => {
-    const saved = localStorage.getItem("wedding_our_story_milestones");
-    if (saved) {
+    const fetchMilestones = async () => {
       try {
-        setMilestones(JSON.parse(saved));
-      } catch (e) {
-        console.error(e);
+        const data = await getOurStory();
+        setMilestones(data);
+      } catch (err) {
+        console.error("Error loading story from Firestore:", err);
       }
-    }
+    };
+
+    fetchMilestones();
 
     const handleUpdate = () => {
-      const updated = localStorage.getItem("wedding_our_story_milestones");
-      if (updated) {
-        try {
-          setMilestones(JSON.parse(updated));
-        } catch (e) {
-          console.error(e);
-        }
-      }
+      fetchMilestones();
     };
     window.addEventListener("wedding_stories_updated", handleUpdate);
     return () => window.removeEventListener("wedding_stories_updated", handleUpdate);
@@ -108,114 +104,54 @@ export default function OurStory() {
           </p>
         </div>
 
-        {/* Timeline Layout */}
-        <div className="relative mt-16">
-          
-          {/* Central Line - Elegant Golden Line with subtle shadow */}
-          <div className="absolute left-4 md:left-1/2 top-0 bottom-0 w-[2px] bg-gradient-to-b from-gold-200 via-gold-400 to-gold-200 transform md:-translate-x-1/2 opacity-60" />
+        {/* 2. Pinterest/Masonry Story Cards Layout (Perfect for original photo aspect ratios) */}
+        <div className="columns-1 md:columns-2 gap-8 space-y-8 [column-fill:_balance] mt-16 max-w-5xl mx-auto">
+          {milestones.map((milestone, idx) => {
+            return (
+              <motion.div
+                key={milestone.id}
+                initial={{ opacity: 0, y: 35 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-80px" }}
+                transition={{ duration: 0.7, ease: "easeOut", delay: idx * 0.1 }}
+                className="break-inside-avoid relative overflow-hidden bg-gold-50/10 p-6 sm:p-7 border border-gold-200 rounded-sm hover:shadow-xl hover:border-gold-300 transition-all duration-500 cursor-pointer group flex flex-col mb-8"
+              >
+                {/* Elegant luxury inner borders */}
+                <div className="absolute inset-1.5 border border-gold-500/10 pointer-events-none rounded-xs" />
 
-          {/* Timeline Milestones Cards */}
-          <div className="space-y-12 md:space-y-24">
-            {milestones.map((milestone, idx) => {
-              const isEven = idx % 2 === 0;
-              
-              return (
-                <div
-                  key={milestone.id}
-                  className="relative flex flex-col md:flex-row items-center"
-                >
-                  {/* Timeline Badge (Node on Central Line) */}
-                  <motion.div
-                    initial={{ scale: 0.6, opacity: 0 }}
-                    whileInView={{ scale: 1, opacity: 1 }}
-                    viewport={{ once: true, margin: "-80px" }}
-                    transition={{ duration: 0.6, ease: "easeOut" }}
-                    className="absolute left-4 md:left-1/2 transform -translate-x-1/2 w-8 h-8 rounded-full bg-white border-2 border-gold-400 flex items-center justify-center z-20 shadow-md"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-gold-500" />
-                  </motion.div>
-
-                  {/* Left Column (Desktop) */}
-                  <div className="w-full md:w-1/2 pl-12 md:pl-0 md:pr-12 md:text-right">
-                    {isEven ? (
-                      <motion.div
-                        initial={{ opacity: 0, x: -40 }}
-                        whileInView={{ opacity: 1, x: 0 }}
-                        viewport={{ once: true, margin: "-100px" }}
-                        transition={{ duration: 0.8, ease: "easeOut" }}
-                        className="bg-gold-50/20 p-5 sm:p-6 border border-gold-200 rounded-sm hover:shadow-lg hover:border-gold-300 transition-all duration-300 relative group"
-                      >
-                        {/* Elegant luxury inner borders */}
-                        <div className="absolute inset-1.5 border border-gold-500/5 pointer-events-none rounded-xs" />
-                        
-                        {/* Milestone Image */}
-                        <div className="overflow-hidden rounded-xs mb-4 max-h-[220px] aspect-video w-full">
-                          <img
-                            src={milestone.imageUrl}
-                            alt={milestone.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 filter brightness-[97%]"
-                            referrerPolicy="no-referrer"
-                          />
-                        </div>
-
-                        {/* Title & Description */}
-                        <span className="font-serif italic text-xs text-gold-600 block mb-1">{milestone.date}</span>
-                        <h4 className="font-serif text-xl font-medium text-zinc-900 mb-2">
-                          {milestone.title}
-                        </h4>
-                        <p className="font-sans text-xs sm:text-sm text-zinc-600 leading-relaxed">
-                          {milestone.description}
-                        </p>
-                      </motion.div>
-                    ) : (
-                      /* Empty spacer to align cards correctly on desktop */
-                      <div className="hidden md:block" />
-                    )}
-                  </div>
-
-                  {/* Right Column (Desktop) */}
-                  <div className="w-full md:w-1/2 pl-12 md:pl-12 mt-6 md:mt-0">
-                    {!isEven ? (
-                      <motion.div
-                        initial={{ opacity: 0, x: 40 }}
-                        whileInView={{ opacity: 1, x: 0 }}
-                        viewport={{ once: true, margin: "-100px" }}
-                        transition={{ duration: 0.8, ease: "easeOut" }}
-                        className="bg-gold-50/20 p-5 sm:p-6 border border-gold-200 rounded-sm hover:shadow-lg hover:border-gold-300 transition-all duration-300 relative group"
-                      >
-                        {/* Elegant luxury inner borders */}
-                        <div className="absolute inset-1.5 border border-gold-500/5 pointer-events-none rounded-xs" />
-
-                        {/* Milestone Image */}
-                        <div className="overflow-hidden rounded-xs mb-4 max-h-[220px] aspect-video w-full">
-                          <img
-                            src={milestone.imageUrl}
-                            alt={milestone.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 filter brightness-[97%]"
-                            referrerPolicy="no-referrer"
-                          />
-                        </div>
-
-                        {/* Title & Description */}
-                        <span className="font-serif italic text-xs text-gold-600 block mb-1">{milestone.date}</span>
-                        <h4 className="font-serif text-xl font-medium text-zinc-900 mb-2">
-                          {milestone.title}
-                        </h4>
-                        <p className="font-sans text-xs sm:text-sm text-zinc-600 leading-relaxed">
-                          {milestone.description}
-                        </p>
-                      </motion.div>
-                    ) : (
-                      /* Empty spacer to align cards correctly on desktop */
-                      <div className="hidden md:block" />
-                    )}
-                  </div>
-
+                {/* Milestone Image without hardcoded crop height or forced aspect-ratio */}
+                <div className="relative w-full overflow-hidden bg-zinc-50 rounded-xs mb-5 border border-zinc-100">
+                  <img
+                    src={milestone.imageUrl}
+                    alt={milestone.title}
+                    className="w-full h-auto block transition-all duration-[1200ms] ease-out group-hover:scale-105 filter brightness-[98%]"
+                    referrerPolicy="no-referrer"
+                  />
+                  {/* Subtle hover overlay */}
+                  <div className="absolute inset-0 bg-gold-900/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                 </div>
-              );
-            })}
-          </div>
 
+                {/* Date & Icon */}
+                <div className="flex items-center space-x-2.5 mb-2.5">
+                  <Calendar className="w-3.5 h-3.5 text-gold-500" />
+                  <span className="font-serif italic text-xs tracking-wider text-gold-600">
+                    {milestone.date}
+                  </span>
+                </div>
+
+                {/* Title */}
+                <h4 className="font-serif text-xl font-light text-zinc-900 mb-3 tracking-wide flex items-center justify-between">
+                  <span>{milestone.title}</span>
+                  <Sparkles className="w-3.5 h-3.5 text-gold-400 fill-none opacity-40 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500" />
+                </h4>
+
+                {/* Description */}
+                <p className="font-sans text-xs sm:text-sm text-zinc-600 leading-relaxed font-light">
+                  {milestone.description}
+                </p>
+              </motion.div>
+            );
+          })}
         </div>
 
       </div>

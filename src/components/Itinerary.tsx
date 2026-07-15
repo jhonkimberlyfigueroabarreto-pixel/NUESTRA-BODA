@@ -8,6 +8,7 @@ import { motion } from "motion/react";
 import * as LucideIcons from "lucide-react";
 import { ITINERARY_DATA } from "../data";
 import { ItineraryItem } from "../types";
+import { getItinerary } from "../lib/firestoreService";
 
 // Helper to resolve icon by string name
 function resolveIcon(iconName: string) {
@@ -22,24 +23,19 @@ export default function Itinerary() {
   const [itinerary, setItinerary] = useState<ItineraryItem[]>(ITINERARY_DATA);
 
   useEffect(() => {
-    const saved = localStorage.getItem("wedding_itinerary");
-    if (saved) {
+    const fetchItinerary = async () => {
       try {
-        setItinerary(JSON.parse(saved));
-      } catch (e) {
-        console.error(e);
+        const data = await getItinerary();
+        setItinerary(data);
+      } catch (err) {
+        console.error("Error loading itinerary from Firestore:", err);
       }
-    }
+    };
+
+    fetchItinerary();
 
     const handleUpdate = () => {
-      const updated = localStorage.getItem("wedding_itinerary");
-      if (updated) {
-        try {
-          setItinerary(JSON.parse(updated));
-        } catch (e) {
-          console.error(e);
-        }
-      }
+      fetchItinerary();
     };
     window.addEventListener("wedding_itinerary_updated", handleUpdate);
     return () => window.removeEventListener("wedding_itinerary_updated", handleUpdate);

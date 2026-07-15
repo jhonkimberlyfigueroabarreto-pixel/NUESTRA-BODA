@@ -55,7 +55,21 @@ import CoverPhotoEditor from "./CoverPhotoEditor";
 import { TIMELINE_MILESTONES } from "./OurStory";
 import { INITIAL_GALLERY_PHOTOS } from "./Gallery";
 import { GIFT_REGISTRY_CHANNELS, ITINERARY_DATA } from "../data";
-import { getGuests, addGuest, updateGuest, deleteGuestFromDb } from "../lib/guestsService";
+import { 
+  getGuests, 
+  addGuest, 
+  updateGuest, 
+  deleteGuestFromDb,
+  getOurStory,
+  saveOurStory,
+  getItinerary as getItineraryFromDb,
+  saveItinerary as saveItineraryToDb,
+  getGalleryPhotos,
+  saveGalleryPhoto,
+  deleteGalleryPhoto,
+  getWeddingSettings,
+  saveWeddingSettings
+} from "../lib/firestoreService";
 
 function generateUniqueGuestCode(existingGuests: AdminGuest[]): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -256,18 +270,8 @@ export default function GuestAdmin() {
       try {
         const dbGuests = await getGuests();
         setGuests(dbGuests);
-        localStorage.setItem("wedding_admin_guests", JSON.stringify(dbGuests));
       } catch (e) {
-        console.error("Error loading guests from Firestore, falling back to local cache:", e);
-        // Fallback to local storage if Firestore is unreachable
-        const savedGuests = localStorage.getItem("wedding_admin_guests");
-        if (savedGuests) {
-          try {
-            setGuests(JSON.parse(savedGuests));
-          } catch (e2) {
-            console.error("Error parsing local cache guests:", e2);
-          }
-        }
+        console.error("Error loading guests from Firestore:", e);
       } finally {
         setIsLoadingGuests(false);
       }
@@ -289,10 +293,9 @@ export default function GuestAdmin() {
     };
   }, []);
 
-  // Save changes helper (keeps cache and Firestore in sync)
+  // Save changes helper (keeps state in sync)
   const saveGuestsToStorage = async (updatedGuests: AdminGuest[]) => {
     setGuests(updatedGuests);
-    localStorage.setItem("wedding_admin_guests", JSON.stringify(updatedGuests));
   };
 
   // Login handler
@@ -1383,16 +1386,15 @@ function HistoriaAdmin() {
   const [editImg, setEditImg] = useState("");
 
   useEffect(() => {
-    const saved = localStorage.getItem("wedding_our_story_milestones");
-    if (saved) {
+    const fetchStories = async () => {
       try {
-        setStories(JSON.parse(saved));
-      } catch (e) {
-        setStories(TIMELINE_MILESTONES);
+        const data = await getOurStory();
+        setStories(data);
+      } catch (err) {
+        console.error("Error loading milestones in admin:", err);
       }
-    } else {
-      setStories(TIMELINE_MILESTONES);
-    }
+    };
+    fetchStories();
   }, []);
 
   const startEdit = (story: any) => {
@@ -1403,7 +1405,7 @@ function HistoriaAdmin() {
     setEditImg(story.imageUrl);
   };
 
-  const handleSave = (id: string) => {
+  const handleSave = async (id: string) => {
     const updated = stories.map(s => {
       if (s.id === id) {
         return {
@@ -1417,18 +1419,26 @@ function HistoriaAdmin() {
       return s;
     });
 
-    setStories(updated);
-    localStorage.setItem("wedding_our_story_milestones", JSON.stringify(updated));
-    window.dispatchEvent(new Event("wedding_stories_updated"));
-    setEditingId(null);
-  };
-
-  const handleReset = () => {
-    if (window.confirm("¿Estás seguro de que deseas restablecer las historias predeterminadas?")) {
-      localStorage.removeItem("wedding_our_story_milestones");
-      setStories(TIMELINE_MILESTONES);
+    try {
+      await saveOurStory(updated);
+      setStories(updated);
       window.dispatchEvent(new Event("wedding_stories_updated"));
       setEditingId(null);
+    } catch (err) {
+      console.error("Error saving milestones to Firestore:", err);
+    }
+  };
+
+  const handleReset = async () => {
+    if (window.confirm("¿Estás seguro de que deseas restablecer las historias predeterminadas?")) {
+      try {
+        await saveOurStory(TIMELINE_MILESTONES);
+        setStories(TIMELINE_MILESTONES);
+        window.dispatchEvent(new Event("wedding_stories_updated"));
+        setEditingId(null);
+      } catch (err) {
+        console.error("Error resetting milestones in Firestore:", err);
+      }
     }
   };
 
@@ -1653,19 +1663,18 @@ function GaleriaAdmin() {
   };
 
   useEffect(() => {
-    const saved = localStorage.getItem("wedding_gallery_photos");
-    if (saved) {
+    const fetchPhotos = async () => {
       try {
-        setPhotos(JSON.parse(saved));
-      } catch (e) {
-        setPhotos(INITIAL_GALLERY_PHOTOS);
+        const list = await getGalleryPhotos();
+        setPhotos(list);
+      } catch (err) {
+        console.error("Error loading gallery in admin:", err);
       }
-    } else {
-      setPhotos(INITIAL_GALLERY_PHOTOS);
-    }
+    };
+    fetchPhotos();
   }, []);
 
-  const handleAddPhoto = () => {
+  const handleAddPhoto = async () => {
     if (!photoUrl || !photoCaption) {
       alert("Por favor rellena la URL de la imagen y la frase.");
       return;
@@ -1677,21 +1686,25 @@ function GaleriaAdmin() {
       caption: photoCaption,
       author: photoAuthor,
       timestamp: photoTimestamp,
-      category: photoCategory,
+      category: photoCategory as "preboda" | "detalles" | "momentos",
       likes: 0
     };
 
-    const updated = [newPhoto, ...photos];
-    setPhotos(updated);
-    localStorage.setItem("wedding_gallery_photos", JSON.stringify(updated));
-    window.dispatchEvent(new Event("wedding_gallery_updated"));
+    try {
+      await saveGalleryPhoto(newPhoto);
+      const updated = [newPhoto, ...photos];
+      setPhotos(updated);
+      window.dispatchEvent(new Event("wedding_gallery_updated"));
 
-    // Reset fields
-    setPhotoUrl("");
-    setPhotoCaption("");
-    setPhotoAuthor("Kimberly & Jhon");
-    setPhotoTimestamp("Julio de 2026");
-    setIsAdding(false);
+      // Reset fields
+      setPhotoUrl("");
+      setPhotoCaption("");
+      setPhotoAuthor("Kimberly & Jhon");
+      setPhotoTimestamp("Julio de 2026");
+      setIsAdding(false);
+    } catch (err) {
+      console.error("Error adding gallery photo to Firestore:", err);
+    }
   };
 
   const startEdit = (photo: any) => {
@@ -1703,41 +1716,56 @@ function GaleriaAdmin() {
     setPhotoCategory(photo.category);
   };
 
-  const handleSaveEdit = (id: string) => {
-    const updated = photos.map(p => {
-      if (p.id === id) {
-        return {
-          ...p,
-          url: photoUrl,
-          caption: photoCaption,
-          author: photoAuthor,
-          timestamp: photoTimestamp,
-          category: photoCategory
-        };
-      }
-      return p;
-    });
+  const handleSaveEdit = async (id: string) => {
+    const originalPhoto = photos.find(p => p.id === id);
+    const updatedPhoto = {
+      id,
+      url: photoUrl,
+      caption: photoCaption,
+      author: photoAuthor,
+      timestamp: photoTimestamp,
+      category: photoCategory as "preboda" | "detalles" | "momentos",
+      likes: originalPhoto ? originalPhoto.likes : 0
+    };
 
-    setPhotos(updated);
-    localStorage.setItem("wedding_gallery_photos", JSON.stringify(updated));
-    window.dispatchEvent(new Event("wedding_gallery_updated"));
-    setEditingId(null);
-  };
-
-  const handleDelete = (id: string) => {
-    if (window.confirm("¿Estás seguro de que deseas eliminar esta fotografía de la galería del recuerdo?")) {
-      const updated = photos.filter(p => p.id !== id);
+    try {
+      await saveGalleryPhoto(updatedPhoto);
+      const updated = photos.map(p => p.id === id ? updatedPhoto : p);
       setPhotos(updated);
-      localStorage.setItem("wedding_gallery_photos", JSON.stringify(updated));
       window.dispatchEvent(new Event("wedding_gallery_updated"));
+      setEditingId(null);
+    } catch (err) {
+      console.error("Error saving gallery photo edit to Firestore:", err);
     }
   };
 
-  const handleReset = () => {
+  const handleDelete = async (id: string) => {
+    if (window.confirm("¿Estás seguro de que deseas eliminar esta fotografía de la galería del recuerdo?")) {
+      try {
+        await deleteGalleryPhoto(id);
+        const updated = photos.filter(p => p.id !== id);
+        setPhotos(updated);
+        window.dispatchEvent(new Event("wedding_gallery_updated"));
+      } catch (err) {
+        console.error("Error deleting gallery photo from Firestore:", err);
+      }
+    }
+  };
+
+  const handleReset = async () => {
     if (window.confirm("¿Estás seguro de que deseas restablecer las fotos predeterminadas de la galería?")) {
-      localStorage.removeItem("wedding_gallery_photos");
-      setPhotos(INITIAL_GALLERY_PHOTOS);
-      window.dispatchEvent(new Event("wedding_gallery_updated"));
+      try {
+        for (const p of photos) {
+          await deleteGalleryPhoto(p.id);
+        }
+        for (const p of INITIAL_GALLERY_PHOTOS) {
+          await saveGalleryPhoto(p);
+        }
+        setPhotos(INITIAL_GALLERY_PHOTOS);
+        window.dispatchEvent(new Event("wedding_gallery_updated"));
+      } catch (err) {
+        console.error("Error resetting gallery photos in Firestore:", err);
+      }
     }
   };
 
@@ -2039,57 +2067,61 @@ function InformacionAdmin() {
   const [countdownFormatted, setCountdownFormatted] = useState("1 de Agosto de 2026");
 
   useEffect(() => {
-    const savedBank = localStorage.getItem("wedding_bank_info");
-    if (savedBank) {
+    const fetchSettings = async () => {
       try {
-        setBankInfo(JSON.parse(savedBank));
-      } catch (e) {
-        console.error(e);
+        const settings = await getWeddingSettings();
+        if (settings) {
+          if (settings.bankInfo) setBankInfo(settings.bankInfo);
+          if (settings.contacts) setContacts(settings.contacts);
+          if (settings.countdownTitle) setCountdownTitle(settings.countdownTitle);
+          if (settings.countdownDate) setCountdownDate(settings.countdownDate);
+          if (settings.countdownDateFormatted) setCountdownFormatted(settings.countdownDateFormatted);
+        }
+      } catch (err) {
+        console.error("Error fetching settings in admin panel:", err);
       }
-    } else {
-      setBankInfo(GIFT_REGISTRY_CHANNELS.bank);
-    }
-
-    const savedContacts = localStorage.getItem("wedding_contacts");
-    if (savedContacts) {
-      try {
-        setContacts(JSON.parse(savedContacts));
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    const savedTitle = localStorage.getItem("wedding_countdown_title");
-    if (savedTitle) setCountdownTitle(savedTitle);
-
-    const savedDate = localStorage.getItem("wedding_countdown_date");
-    if (savedDate) setCountdownDate(savedDate);
-
-    const savedFormatted = localStorage.getItem("wedding_countdown_date_formatted");
-    if (savedFormatted) setCountdownFormatted(savedFormatted);
+    };
+    fetchSettings();
   }, []);
 
-  const handleSaveBank = (e: React.FormEvent) => {
+  const handleSaveBank = async (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem("wedding_bank_info", JSON.stringify(bankInfo));
-    window.dispatchEvent(new Event("wedding_bank_updated"));
-    alert("¡Información de la cuenta bancaria guardada con éxito!");
+    try {
+      await saveWeddingSettings({ bankInfo });
+      window.dispatchEvent(new Event("wedding_bank_updated"));
+      alert("¡Información de la cuenta bancaria guardada con éxito!");
+    } catch (err) {
+      console.error("Error saving bank info to Firestore:", err);
+      alert("Error al guardar la información de la cuenta bancaria.");
+    }
   };
 
-  const handleSaveContacts = (e: React.FormEvent) => {
+  const handleSaveContacts = async (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem("wedding_contacts", JSON.stringify(contacts));
-    window.dispatchEvent(new Event("wedding_contact_updated"));
-    alert("¡Contactos de asistencia guardados con éxito!");
+    try {
+      await saveWeddingSettings({ contacts });
+      window.dispatchEvent(new Event("wedding_contact_updated"));
+      alert("¡Contactos de asistencia guardados con éxito!");
+    } catch (err) {
+      console.error("Error saving contacts to Firestore:", err);
+      alert("Error al guardar los contactos.");
+    }
   };
 
-  const handleSaveCountdown = (e: React.FormEvent) => {
+  const handleSaveCountdown = async (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem("wedding_countdown_title", countdownTitle);
-    localStorage.setItem("wedding_countdown_date", countdownDate);
-    localStorage.setItem("wedding_countdown_date_formatted", countdownFormatted);
-    window.dispatchEvent(new Event("wedding_countdown_date_updated"));
-    alert("¡Configuración de la cuenta regresiva guardada con éxito!");
+    try {
+      await saveWeddingSettings({
+        countdownTitle,
+        countdownDate,
+        countdownDateFormatted: countdownFormatted,
+      });
+      window.dispatchEvent(new Event("wedding_countdown_date_updated"));
+      alert("¡Configuración de la cuenta regresiva guardada con éxito!");
+    } catch (err) {
+      console.error("Error saving countdown configuration to Firestore:", err);
+      alert("Error al guardar la configuración de la cuenta regresiva.");
+    }
   };
 
   const updateContactField = (index: number, field: string, value: string) => {
@@ -2337,28 +2369,32 @@ function ItinerarioAdmin() {
   const [editDescription, setEditDescription] = useState("");
   const [editIcon, setEditIcon] = useState("Clock");
 
-  // Load from local storage
+  // Load from Firestore
   useEffect(() => {
-    const saved = localStorage.getItem("wedding_itinerary");
-    if (saved) {
+    const fetchItinerary = async () => {
       try {
-        setItinerary(JSON.parse(saved));
-      } catch (e) {
-        setItinerary(ITINERARY_DATA);
+        const data = await getItineraryFromDb();
+        setItinerary(data);
+      } catch (err) {
+        console.error("Error loading itinerary in admin:", err);
       }
-    } else {
-      setItinerary(ITINERARY_DATA);
-    }
+    };
+    fetchItinerary();
   }, []);
 
   // Save changes helper
-  const saveItinerary = (updatedList: ItineraryItem[]) => {
-    setItinerary(updatedList);
-    localStorage.setItem("wedding_itinerary", JSON.stringify(updatedList));
-    window.dispatchEvent(new Event("wedding_itinerary_updated"));
+  const saveItinerary = async (updatedList: ItineraryItem[]) => {
+    try {
+      await saveItineraryToDb(updatedList);
+      setItinerary(updatedList);
+      window.dispatchEvent(new Event("wedding_itinerary_updated"));
+    } catch (err) {
+      console.error("Error saving itinerary to Firestore:", err);
+      alert("Error al guardar el itinerario en la base de datos.");
+    }
   };
 
-  const handleAddItem = (e: React.FormEvent) => {
+  const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
     const newItem: ItineraryItem = {
       id: "iti-custom-" + Date.now(),
@@ -2370,7 +2406,7 @@ function ItinerarioAdmin() {
     const updated = [...itinerary, newItem];
     // Auto sort by time
     updated.sort((a, b) => a.time.localeCompare(b.time));
-    saveItinerary(updated);
+    await saveItinerary(updated);
     
     // Reset fields
     setNewTime("");
@@ -2388,7 +2424,7 @@ function ItinerarioAdmin() {
     setEditIcon(item.iconName);
   };
 
-  const handleSaveEdit = (id: string) => {
+  const handleSaveEdit = async (id: string) => {
     const updated = itinerary.map((item) => {
       if (item.id === id) {
         return {
@@ -2403,47 +2439,47 @@ function ItinerarioAdmin() {
     });
     // Auto sort by time
     updated.sort((a, b) => a.time.localeCompare(b.time));
-    saveItinerary(updated);
+    await saveItinerary(updated);
     setEditingId(null);
     alert("¡Evento actualizado!");
   };
 
-  const handleDeleteItem = (id: string) => {
+  const handleDeleteItem = async (id: string) => {
     if (confirm("¿Estás seguro de que deseas eliminar este evento del itinerario?")) {
       const updated = itinerary.filter((item) => item.id !== id);
-      saveItinerary(updated);
+      await saveItinerary(updated);
       alert("¡Evento eliminado!");
     }
   };
 
-  const handleMoveUp = (index: number) => {
+  const handleMoveUp = async (index: number) => {
     if (index === 0) return;
     const updated = [...itinerary];
     const temp = updated[index];
     updated[index] = updated[index - 1];
     updated[index - 1] = temp;
-    saveItinerary(updated);
+    await saveItinerary(updated);
   };
 
-  const handleMoveDown = (index: number) => {
+  const handleMoveDown = async (index: number) => {
     if (index === itinerary.length - 1) return;
     const updated = [...itinerary];
     const temp = updated[index];
     updated[index] = updated[index + 1];
     updated[index + 1] = temp;
-    saveItinerary(updated);
+    await saveItinerary(updated);
   };
 
-  const handleResetToDefault = () => {
+  const handleResetToDefault = async () => {
     if (confirm("¿Deseas restablecer el itinerario a su versión original? Esto borrará tus cambios personalizados.")) {
-      saveItinerary(ITINERARY_DATA);
+      await saveItinerary(ITINERARY_DATA);
       alert("¡Itinerario restablecido con éxito!");
     }
   };
 
-  const handleSortByTime = () => {
+  const handleSortByTime = async () => {
     const sorted = [...itinerary].sort((a, b) => a.time.localeCompare(b.time));
-    saveItinerary(sorted);
+    await saveItinerary(sorted);
     alert("¡Itinerario ordenado cronológicamente por hora!");
   };
 

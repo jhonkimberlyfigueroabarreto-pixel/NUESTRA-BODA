@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from "react";
 import { MessageCircle, Heart, Phone, Award } from "lucide-react";
+import { getWeddingSettings } from "../lib/firestoreService";
 
 const DEFAULT_CONTACTS = [
   {
@@ -31,24 +32,21 @@ export default function Contact() {
   const [contacts, setContacts] = useState(DEFAULT_CONTACTS);
 
   useEffect(() => {
-    const saved = localStorage.getItem("wedding_contacts");
-    if (saved) {
+    const fetchContacts = async () => {
       try {
-        setContacts(JSON.parse(saved));
-      } catch (e) {
-        console.error(e);
+        const settings = await getWeddingSettings();
+        if (settings && settings.contacts) {
+          setContacts(settings.contacts);
+        }
+      } catch (err) {
+        console.error("Error loading contacts from Firestore:", err);
       }
-    }
+    };
+
+    fetchContacts();
 
     const handleUpdate = () => {
-      const updated = localStorage.getItem("wedding_contacts");
-      if (updated) {
-        try {
-          setContacts(JSON.parse(updated));
-        } catch (e) {
-          console.error(e);
-        }
-      }
+      fetchContacts();
     };
     window.addEventListener("wedding_contact_updated", handleUpdate);
     return () => window.removeEventListener("wedding_contact_updated", handleUpdate);

@@ -19,7 +19,10 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 // Initialize Firestore using the custom firestoreDatabaseId from config
-export const db = initializeFirestore(app, {}, "ai-studio-bodakimberlyyjho-e8d1b9fb-ccab-4520-a1d8-009da67bdd0c");
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true,
+  useFetchStreams: false,
+} as any, "ai-studio-bodakimberlyyjho-e8d1b9fb-ccab-4520-a1d8-009da67bdd0c");
 
 // Test connection on boot
 async function testConnection() {

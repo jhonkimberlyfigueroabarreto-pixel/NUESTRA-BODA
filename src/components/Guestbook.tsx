@@ -8,6 +8,7 @@ import { MessageSquare, Heart, Send, Sparkles, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GuestbookMessage } from "../types";
 import { INITIAL_MESSAGES } from "../data";
+import { getGuestbookMessages, saveGuestbookMessage, deleteGuestbookMessage } from "../lib/firestoreService";
 
 export default function Guestbook() {
   const [messages, setMessages] = useState<GuestbookMessage[]>([]);
@@ -16,19 +17,27 @@ export default function Guestbook() {
   const [successAnimation, setSuccessAnimation] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem("wedding_guestbook");
-    if (saved) {
+    const fetchMessages = async () => {
       try {
-        setMessages(JSON.parse(saved));
-      } catch (e) {
-        setMessages(INITIAL_MESSAGES);
+        const list = await getGuestbookMessages();
+        // Sort newest first based on numeric timestamp inside id or let's just keep as is or sort by timestamp or id
+        const sorted = [...list].sort((a, b) => {
+          if (a.id.includes("msg-") && b.id.includes("msg-")) {
+            const timeA = parseInt(a.id.replace("msg-", ""), 10);
+            const timeB = parseInt(b.id.replace("msg-", ""), 10);
+            return timeB - timeA;
+          }
+          return 0;
+        });
+        setMessages(sorted);
+      } catch (err) {
+        console.error("Error loading guestbook messages from Firestore:", err);
       }
-    } else {
-      setMessages(INITIAL_MESSAGES);
-    }
+    };
+    fetchMessages();
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!authorName.trim() || !messageText.trim()) return;
 
@@ -44,32 +53,40 @@ export default function Guestbook() {
       heartCount: 0,
     };
 
-    const updated = [newMessage, ...messages];
-    setMessages(updated);
-    localStorage.setItem("wedding_guestbook", JSON.stringify(updated));
+    try {
+      await saveGuestbookMessage(newMessage);
+      setMessages([newMessage, ...messages]);
 
-    setAuthorName("");
-    setMessageText("");
-    setSuccessAnimation(true);
-    setTimeout(() => setSuccessAnimation(false), 2500);
+      setAuthorName("");
+      setMessageText("");
+      setSuccessAnimation(true);
+      setTimeout(() => setSuccessAnimation(false), 2500);
+    } catch (err) {
+      console.error("Error sending guestbook message:", err);
+    }
   };
 
-  const handleHeartClick = (id: string) => {
-    const updated = messages.map((m) => {
-      if (m.id === id) {
-        return { ...m, heartCount: m.heartCount + 1 };
-      }
-      return m;
-    });
-    setMessages(updated);
-    localStorage.setItem("wedding_guestbook", JSON.stringify(updated));
+  const handleHeartClick = async (id: string) => {
+    const msg = messages.find((m) => m.id === id);
+    if (!msg) return;
+    const updatedMsg = { ...msg, heartCount: msg.heartCount + 1 };
+
+    try {
+      await saveGuestbookMessage(updatedMsg);
+      setMessages(messages.map((m) => (m.id === id ? updatedMsg : m)));
+    } catch (err) {
+      console.error("Error updating heart count:", err);
+    }
   };
 
-  const handleDeleteMessage = (id: string) => {
+  const handleDeleteMessage = async (id: string) => {
     if (window.confirm("¿Deseas eliminar este mensaje del muro de bendiciones?")) {
-      const updated = messages.filter((m) => m.id !== id);
-      setMessages(updated);
-      localStorage.setItem("wedding_guestbook", JSON.stringify(updated));
+      try {
+        await deleteGuestbookMessage(id);
+        setMessages(messages.filter((m) => m.id !== id));
+      } catch (err) {
+        console.error("Error deleting guestbook message:", err);
+      }
     }
   };
 

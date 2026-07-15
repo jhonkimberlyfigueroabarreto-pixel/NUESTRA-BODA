@@ -8,6 +8,7 @@ import { Camera, Image, Upload, User, CheckCircle, Heart, Trash2 } from "lucide-
 import { motion, AnimatePresence } from "motion/react";
 import { PhotoAsset } from "../types";
 import { INITIAL_PHOTOS } from "../data";
+import { getGuestPhotos, saveGuestPhoto, deleteGuestPhoto } from "../lib/firestoreService";
 
 export default function PhotoSharing() {
   const [photosList, setPhotosList] = useState<PhotoAsset[]>([]);
@@ -19,16 +20,24 @@ export default function PhotoSharing() {
   const [successUpload, setSuccessUpload] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem("wedding_guest_photos");
-    if (saved) {
+    const fetchPhotos = async () => {
       try {
-        setPhotosList(JSON.parse(saved));
-      } catch (e) {
-        setPhotosList(INITIAL_PHOTOS);
+        const list = await getGuestPhotos();
+        // Sort guest photos to show newest first, but if they have a standard guest-photo timestamp or timestamp isn't comparable, let's keep list or sort by id if it contains timestamp
+        const sorted = [...list].sort((a, b) => {
+          if (a.id.includes("guest-photo-") && b.id.includes("guest-photo-")) {
+            const timeA = parseInt(a.id.replace("guest-photo-", ""), 10);
+            const timeB = parseInt(b.id.replace("guest-photo-", ""), 10);
+            return timeB - timeA;
+          }
+          return 0;
+        });
+        setPhotosList(sorted);
+      } catch (err) {
+        console.error("Error fetching guest photos from Firestore:", err);
       }
-    } else {
-      setPhotosList(INITIAL_PHOTOS);
-    }
+    };
+    fetchPhotos();
   }, []);
 
   const handleDrag = (e: React.DragEvent) => {
@@ -65,7 +74,7 @@ export default function PhotoSharing() {
     reader.readAsDataURL(file);
   };
 
-  const handleSubmitPhoto = (e: React.FormEvent) => {
+  const handleSubmitPhoto = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedImageBase64 || !author.trim() || !caption.trim()) return;
 
@@ -78,35 +87,43 @@ export default function PhotoSharing() {
       likes: 0,
     };
 
-    const updatedList = [newPhoto, ...photosList];
-    setPhotosList(updatedList);
-    localStorage.setItem("wedding_guest_photos", JSON.stringify(updatedList));
+    try {
+      await saveGuestPhoto(newPhoto);
+      setPhotosList([newPhoto, ...photosList]);
 
-    // Reset Form & show success
-    setSelectedImageBase64(null);
-    setAuthor("");
-    setCaption("");
-    setShowUploadForm(false);
-    setSuccessUpload(true);
-    setTimeout(() => setSuccessUpload(false), 3000);
+      // Reset Form & show success
+      setSelectedImageBase64(null);
+      setAuthor("");
+      setCaption("");
+      setShowUploadForm(false);
+      setSuccessUpload(true);
+      setTimeout(() => setSuccessUpload(false), 3000);
+    } catch (err) {
+      console.error("Error uploading photo to Firestore:", err);
+    }
   };
 
-  const handleLikePhoto = (id: string) => {
-    const updated = photosList.map((photo) => {
-      if (photo.id === id) {
-        return { ...photo, likes: photo.likes + 1 };
-      }
-      return photo;
-    });
-    setPhotosList(updated);
-    localStorage.setItem("wedding_guest_photos", JSON.stringify(updated));
+  const handleLikePhoto = async (id: string) => {
+    const photo = photosList.find((p) => p.id === id);
+    if (!photo) return;
+    const updatedPhoto = { ...photo, likes: photo.likes + 1 };
+    
+    try {
+      await saveGuestPhoto(updatedPhoto);
+      setPhotosList(photosList.map((p) => (p.id === id ? updatedPhoto : p)));
+    } catch (err) {
+      console.error("Error liking photo in Firestore:", err);
+    }
   };
 
-  const handleDeletePhoto = (id: string) => {
+  const handleDeletePhoto = async (id: string) => {
     if (window.confirm("¿Deseas eliminar esta foto de la galería?")) {
-      const updated = photosList.filter((photo) => photo.id !== id);
-      setPhotosList(updated);
-      localStorage.setItem("wedding_guest_photos", JSON.stringify(updated));
+      try {
+        await deleteGuestPhoto(id);
+        setPhotosList(photosList.filter((photo) => photo.id !== id));
+      } catch (err) {
+        console.error("Error deleting photo from Firestore:", err);
+      }
     }
   };
 

@@ -6,30 +6,28 @@
 import React, { useState, useEffect } from "react";
 import { Mail, Landmark, Copy, Check, Heart } from "lucide-react";
 import { GIFT_REGISTRY_CHANNELS } from "../data";
+import { getWeddingSettings } from "../lib/firestoreService";
 
 export default function GiftRegistry() {
   const [copiedBank, setCopiedBank] = useState(false);
   const [bankInfo, setBankInfo] = useState(GIFT_REGISTRY_CHANNELS.bank);
 
   useEffect(() => {
-    const saved = localStorage.getItem("wedding_bank_info");
-    if (saved) {
+    const fetchBankInfo = async () => {
       try {
-        setBankInfo(JSON.parse(saved));
-      } catch (e) {
-        console.error(e);
+        const settings = await getWeddingSettings();
+        if (settings && settings.bankInfo) {
+          setBankInfo(settings.bankInfo);
+        }
+      } catch (err) {
+        console.error("Error loading bank settings from Firestore:", err);
       }
-    }
+    };
+
+    fetchBankInfo();
 
     const handleUpdate = () => {
-      const updated = localStorage.getItem("wedding_bank_info");
-      if (updated) {
-        try {
-          setBankInfo(JSON.parse(updated));
-        } catch (e) {
-          console.error(e);
-        }
-      }
+      fetchBankInfo();
     };
     window.addEventListener("wedding_bank_updated", handleUpdate);
     return () => window.removeEventListener("wedding_bank_updated", handleUpdate);

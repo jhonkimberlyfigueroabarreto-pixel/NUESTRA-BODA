@@ -7,6 +7,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { motion } from "motion/react";
 import { Camera, Upload, RefreshCw, Sparkles, Check, AlertCircle } from "lucide-react";
 import defaultCover from "../assets/images/wedding_cover_custom_couple_1784063752964.jpg";
+import { getWeddingSettings, saveWeddingSettings } from "../lib/firestoreService";
 
 export default function CoverPhotoEditor() {
   const [previewImage, setPreviewImage] = useState<string>(defaultCover);
@@ -17,10 +18,17 @@ export default function CoverPhotoEditor() {
 
   // Load custom cover on mount
   useEffect(() => {
-    const savedCover = localStorage.getItem("wedding_custom_cover_image");
-    if (savedCover) {
-      setPreviewImage(savedCover);
-    }
+    const fetchCover = async () => {
+      try {
+        const settings = await getWeddingSettings();
+        if (settings?.customCoverImage) {
+          setPreviewImage(settings.customCoverImage);
+        }
+      } catch (err) {
+        console.error("Error loading cover image from Firestore:", err);
+      }
+    };
+    fetchCover();
   }, []);
 
   const triggerFileSelect = () => {
@@ -66,17 +74,22 @@ export default function CoverPhotoEditor() {
           // Quality: 0.78 is the sweet spot of gorgeous high fidelity and lightweight size (~200kb)
           const compressedBase64 = canvas.toDataURL("image/jpeg", 0.78);
           
-          localStorage.setItem("wedding_custom_cover_image", compressedBase64);
-          
-          // Dispatch custom event to notify Hero component of real-time update
-          window.dispatchEvent(new Event("wedding_cover_updated"));
-          
-          setPreviewImage(compressedBase64);
-          setStatusMsg({ type: "success", text: "¡Tu foto de portada ha sido actualizada con éxito y optimizada para la web!" });
+          saveWeddingSettings({ customCoverImage: compressedBase64 })
+            .then(() => {
+              window.dispatchEvent(new Event("wedding_cover_updated"));
+              setPreviewImage(compressedBase64);
+              setStatusMsg({ type: "success", text: "¡Tu foto de portada ha sido actualizada con éxito y optimizada para la web!" });
+            })
+            .catch(err => {
+              console.error("Error saving cover image to Firestore:", err);
+              setStatusMsg({ type: "error", text: "Error al guardar la foto de portada en la base de datos." });
+            })
+            .finally(() => {
+              setIsCompiling(false);
+            });
         } catch (e) {
           console.error("Compression error:", e);
           setStatusMsg({ type: "error", text: "Error al procesar la imagen. Intenta con otra foto." });
-        } finally {
           setIsCompiling(false);
         }
       };
@@ -122,12 +135,17 @@ export default function CoverPhotoEditor() {
     }
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     if (window.confirm("¿Estás seguro de que deseas restablecer la foto de portada predeterminada?")) {
-      localStorage.removeItem("wedding_custom_cover_image");
-      window.dispatchEvent(new Event("wedding_cover_updated"));
-      setPreviewImage(defaultCover);
-      setStatusMsg({ type: "success", text: "Se ha restablecido la foto de portada predeterminada." });
+      try {
+        await saveWeddingSettings({ customCoverImage: "" });
+        window.dispatchEvent(new Event("wedding_cover_updated"));
+        setPreviewImage(defaultCover);
+        setStatusMsg({ type: "success", text: "Se ha restablecido la foto de portada predeterminada." });
+      } catch (err) {
+        console.error("Error resetting cover image in Firestore:", err);
+        setStatusMsg({ type: "error", text: "Error al restablecer la foto de portada." });
+      }
     }
   };
 

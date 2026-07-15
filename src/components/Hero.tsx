@@ -8,6 +8,7 @@ import { motion } from "motion/react";
 import { Calendar, ChevronDown, Sparkles } from "lucide-react";
 import { WEDDING_DATE } from "../data";
 import coverImage from "../assets/images/wedding_cover_custom_couple_1784063752964.jpg";
+import { getWeddingSettings } from "../lib/firestoreService";
 
 // ==========================================
 // EDITABLE CONTENT SECTION
@@ -41,61 +42,40 @@ export default function Hero({ onDiscoverClick }: HeroProps) {
     isOver: false,
   });
 
-  // Load custom cover and countdown on mount
+  // Load custom cover and countdown on mount from Firestore
   useEffect(() => {
-    const savedCover = localStorage.getItem("wedding_custom_cover_image");
-    if (savedCover) {
-      setCover(savedCover);
-    }
-
-    const savedTitle = localStorage.getItem("wedding_countdown_title");
-    if (savedTitle) {
-      setCountdownTitle(savedTitle);
-    }
-
-    const savedFormatted = localStorage.getItem("wedding_countdown_date_formatted");
-    if (savedFormatted) {
-      setFormattedDate(savedFormatted);
-    }
-
-    const savedDate = localStorage.getItem("wedding_countdown_date");
-    if (savedDate) {
+    const fetchSettings = async () => {
       try {
-        setWeddingDate(new Date(savedDate));
-      } catch (e) {
-        console.error(e);
-      }
-    }
-  }, []);
-
-  // Listen for updates in real-time
-  useEffect(() => {
-    const handleCoverUpdate = () => {
-      const savedCover = localStorage.getItem("wedding_custom_cover_image");
-      if (savedCover) {
-        setCover(savedCover);
-      } else {
-        setCover(coverImage);
+        const settings = await getWeddingSettings();
+        if (settings) {
+          if (settings.customCoverImage) {
+            setCover(settings.customCoverImage);
+          } else {
+            setCover(coverImage);
+          }
+          if (settings.countdownTitle) {
+            setCountdownTitle(settings.countdownTitle);
+          }
+          if (settings.countdownDateFormatted) {
+            setFormattedDate(settings.countdownDateFormatted);
+          }
+          if (settings.countdownDate) {
+            setWeddingDate(new Date(settings.countdownDate));
+          }
+        }
+      } catch (err) {
+        console.error("Error loading wedding settings in Hero:", err);
       }
     };
 
+    fetchSettings();
+
+    const handleCoverUpdate = () => {
+      fetchSettings();
+    };
+
     const handleCountdownUpdate = () => {
-      const savedTitle = localStorage.getItem("wedding_countdown_title");
-      if (savedTitle) setCountdownTitle(savedTitle);
-
-      const savedFormatted = localStorage.getItem("wedding_countdown_date_formatted");
-      if (savedFormatted) setFormattedDate(savedFormatted);
-
-      const savedDate = localStorage.getItem("wedding_countdown_date");
-      if (savedDate) {
-        try {
-          setWeddingDate(new Date(savedDate));
-        } catch (e) {
-          console.error(e);
-        }
-      } else {
-        setWeddingDate(WEDDING_DATE);
-      }
+      fetchSettings();
     };
 
     window.addEventListener("wedding_cover_updated", handleCoverUpdate);

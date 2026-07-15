@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Heart, ZoomIn, X, ChevronLeft, ChevronRight, Sparkles, Sliders } from "lucide-react";
+import { getGalleryPhotos, saveGalleryPhoto } from "../lib/firestoreService";
 
 // ==========================================
 // EDITABLE LABELS & CONFIGURATION
@@ -139,26 +140,21 @@ export default function Gallery() {
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [touchStartY, setTouchStartY] = useState<number | null>(null);
 
-  // Load photos from localStorage if present
+  // Load photos from Firestore
   useEffect(() => {
-    const savedPhotos = localStorage.getItem("wedding_gallery_photos");
-    if (savedPhotos) {
+    const fetchPhotos = async () => {
       try {
-        setPhotos(JSON.parse(savedPhotos));
-      } catch (e) {
-        console.error(e);
+        const list = await getGalleryPhotos();
+        setPhotos(list);
+      } catch (err) {
+        console.error("Error loading gallery photos:", err);
       }
-    }
+    };
+
+    fetchPhotos();
 
     const handleUpdate = () => {
-      const updated = localStorage.getItem("wedding_gallery_photos");
-      if (updated) {
-        try {
-          setPhotos(JSON.parse(updated));
-        } catch (e) {
-          console.error(e);
-        }
-      }
+      fetchPhotos();
     };
     window.addEventListener("wedding_gallery_updated", handleUpdate);
     return () => window.removeEventListener("wedding_gallery_updated", handleUpdate);
@@ -168,30 +164,32 @@ export default function Gallery() {
     ? photos
     : photos.filter(photo => photo.category === filter);
 
-  // Manage likes internally (with local storage safety to keep it persistent)
-  useEffect(() => {
-    const savedLikes = localStorage.getItem("wedding_gallery_likes");
-    if (savedLikes) {
-      try {
-        setLikesState(JSON.parse(savedLikes));
-      } catch (e) {
-        console.error(e);
-      }
-    }
-  }, []);
-
-  const handleLike = (id: string, e: React.MouseEvent) => {
+  const handleLike = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const currentLikes = likesState[id] !== undefined 
-      ? likesState[id] 
-      : (photos.find(p => p.id === id)?.likes || 0);
     
-    const updated = {
-      ...likesState,
-      [id]: currentLikes + 1,
-    };
-    setLikesState(updated);
-    localStorage.setItem("wedding_gallery_likes", JSON.stringify(updated));
+    // Prevent multiple likes from the same session
+    if (likesState[id]) {
+      return;
+    }
+
+    const photoToUpdate = photos.find(p => p.id === id);
+    if (!photoToUpdate) return;
+
+    const updatedPhoto = { ...photoToUpdate, likes: photoToUpdate.likes + 1 };
+    
+    try {
+      await saveGalleryPhoto(updatedPhoto);
+      
+      const newLikesState = {
+        ...likesState,
+        [id]: 1,
+      };
+      setLikesState(newLikesState);
+      
+      setPhotos(prev => prev.map(p => p.id === id ? updatedPhoto : p));
+    } catch (err) {
+      console.error("Error updating photo likes in Firestore:", err);
+    }
   };
 
   const handleImageLoad = (id: string) => {
@@ -344,7 +342,7 @@ export default function Gallery() {
                   <div className="absolute inset-2.5 border border-transparent group-hover:border-gold-400/20 transition-colors duration-500 pointer-events-none z-20" />
 
                   {/* Image container & Zoom on hover */}
-                  <div className="relative w-full overflow-hidden bg-zinc-100 flex-1">
+                  <div className="relative w-full overflow-hidden bg-zinc-100">
                     
                     {/* Shimmer loading placeholder block to prevent layout shifts */}
                     {!isLoaded && (
@@ -358,7 +356,7 @@ export default function Gallery() {
                       alt={photo.caption}
                       loading="lazy"
                       onLoad={() => handleImageLoad(photo.id)}
-                      className={`w-full h-auto object-cover transition-all duration-1000 ease-out group-hover:scale-105 ${
+                      className={`w-full h-auto block transition-all duration-1000 ease-out group-hover:scale-105 ${
                         isLoaded ? "opacity-100 blur-0 scale-100" : "opacity-0 blur-md scale-95"
                       }`}
                       referrerPolicy="no-referrer"
