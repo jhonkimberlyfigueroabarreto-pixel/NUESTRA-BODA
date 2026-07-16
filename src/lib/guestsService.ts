@@ -8,5 +8,6 @@ export {
   getGuests, 
   addGuest, 
   updateGuest, 
-  deleteGuestFromDb 
+  deleteGuestFromDb,
+  syncTablesWithGuestsState
 } from "./firestoreService";

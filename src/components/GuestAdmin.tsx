@@ -49,7 +49,7 @@ import {
   MessageSquare
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { AdminGuest, ItineraryItem, GuestbookMessage, PhotoAsset } from "../types";
+import { AdminGuest, ItineraryItem, GuestbookMessage, PhotoAsset, Table } from "../types";
 import TableAdmin from "./TableAdmin";
 import CoverPhotoEditor from "./CoverPhotoEditor";
 import { TIMELINE_MILESTONES } from "./OurStory";
@@ -60,6 +60,8 @@ import {
   addGuest, 
   updateGuest, 
   deleteGuestFromDb,
+  getTables,
+  syncTablesWithGuestsState,
   getOurStory,
   saveOurStory,
   getItinerary as getItineraryFromDb,
@@ -240,6 +242,7 @@ export default function GuestAdmin() {
 
   // Guests list & CRUD States
   const [guests, setGuests] = useState<AdminGuest[]>([]);
+  const [tables, setTables] = useState<Table[]>([]);
   const [isLoadingGuests, setIsLoadingGuests] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("todos");
@@ -271,23 +274,24 @@ export default function GuestAdmin() {
       setIsAuthenticated(true);
     }
 
-    const loadFirestoreGuests = async () => {
+    const loadFirestoreGuestsAndTables = async () => {
       setIsLoadingGuests(true);
       try {
-        const dbGuests = await getGuests();
+        const [dbGuests, dbTables] = await Promise.all([getGuests(), getTables()]);
         setGuests(dbGuests);
+        setTables(dbTables);
       } catch (e) {
-        console.error("Error loading guests from Firestore:", e);
+        console.error("Error loading guests/tables from Firestore:", e);
       } finally {
         setIsLoadingGuests(false);
       }
     };
 
-    loadFirestoreGuests();
+    loadFirestoreGuestsAndTables();
 
     // Listeners for updates
     const handleUpdateEvent = () => {
-      loadFirestoreGuests();
+      loadFirestoreGuestsAndTables();
     };
 
     window.addEventListener("wedding_admin_guests_updated", handleUpdateEvent);
@@ -340,8 +344,29 @@ export default function GuestAdmin() {
       return;
     }
 
+    // Validate table capacity if a table is selected (and not "Sin mesa")
+    if (formTableName && formTableName !== "Sin mesa") {
+      const targetTable = tables.find(t => `Mesa ${t.number} - ${t.name}` === formTableName);
+      if (targetTable) {
+        // Calculate the current occupied seats for this table from the guests list (excluding the guest being edited)
+        const guestsInTable = guests.filter(g => 
+          g.tableName === formTableName && 
+          (!editingGuest || g.id !== editingGuest.id)
+        );
+        const currentOccupiedCupos = guestsInTable.reduce((sum, g) => sum + g.quota, 0);
+        const projectedOccupancy = currentOccupiedCupos + formQuota;
+        const capacity = targetTable.capacity || 10;
+
+        if (projectedOccupancy > capacity) {
+          setFormError("No es posible asignar este invitado a la mesa seleccionada porque la capacidad sería superada.");
+          return;
+        }
+      }
+    }
+
     setIsLoadingGuests(true);
     try {
+      let finalGuests = [...guests];
       if (editingGuest) {
         // Edit mode
         const updatedGuest: AdminGuest = {
@@ -357,8 +382,8 @@ export default function GuestAdmin() {
           wantsReminder: editingGuest.wantsReminder || false
         };
 
-        const updated = guests.map(g => g.id === editingGuest.id ? updatedGuest : g);
-        await saveGuestsToStorage(updated);
+        finalGuests = guests.map(g => g.id === editingGuest.id ? updatedGuest : g);
+        await saveGuestsToStorage(finalGuests);
         await updateGuest(updatedGuest);
       } else {
         // Add mode
@@ -375,8 +400,13 @@ export default function GuestAdmin() {
         };
 
         const persistedGuest = await addGuest(newGuestData);
-        await saveGuestsToStorage([persistedGuest, ...guests]);
+        finalGuests = [persistedGuest, ...guests];
+        await saveGuestsToStorage(finalGuests);
       }
+
+      // Sync tables collection in Firestore automatically
+      await syncTablesWithGuestsState(finalGuests);
+
       // Dispatch update event
       window.dispatchEvent(new Event("wedding_admin_guests_updated"));
       setIsFormOpen(false);
@@ -396,7 +426,7 @@ export default function GuestAdmin() {
     setFormPhone("");
     setFormEmail("");
     setFormQuota(2);
-    setFormTableName("Mesa 1 - Imperial de Honor");
+    setFormTableName("Sin mesa");
     setFormStatus("Pendiente");
     setFormNotes("");
     setFormError("");
@@ -414,7 +444,7 @@ export default function GuestAdmin() {
     setFormPhone(guest.phone || "");
     setFormEmail(guest.email || "");
     setFormQuota(guest.quota);
-    setFormTableName(guest.tableName || "Mesa 1 - Imperial de Honor");
+    setFormTableName(guest.tableName || "Sin mesa");
     setFormStatus(guest.status);
     setFormNotes(guest.notes || "");
     setIsFormOpen(true);
@@ -427,6 +457,10 @@ export default function GuestAdmin() {
         const filtered = guests.filter(g => g.id !== id);
         await saveGuestsToStorage(filtered);
         await deleteGuestFromDb(id);
+        
+        // Sync tables collection in Firestore automatically after deleting
+        await syncTablesWithGuestsState(filtered);
+
         window.dispatchEvent(new Event("wedding_admin_guests_updated"));
       } catch (err) {
         console.error("Error deleting guest:", err);
@@ -1324,12 +1358,15 @@ export default function GuestAdmin() {
                       onChange={(e) => setFormTableName(e.target.value)}
                       className="w-full bg-zinc-950 border border-zinc-800 text-zinc-200 p-2.5 rounded-sm outline-none focus:border-gold-500"
                     >
-                      <option value="Mesa 1 - Imperial de Honor">Mesa 1 - Imperial de Honor</option>
-                      <option value="Mesa 2 - Familia Figueroa">Mesa 2 - Familia Figueroa</option>
-                      <option value="Mesa 3 - Familia Jhon">Mesa 3 - Familia Jhon</option>
-                      <option value="Mesa 4 - Corte de Honor">Mesa 4 - Corte de Honor</option>
-                      <option value="Mesa 5 - Amigos Cercanos">Mesa 5 - Amigos Cercanos</option>
-                      <option value="Mesa 6 - Compañeros de Éxito">Mesa 6 - Compañeros de Éxito</option>
+                      <option value="Sin mesa">Sin mesa</option>
+                      {tables.map(t => {
+                        const val = `Mesa ${t.number} - ${t.name}`;
+                        return (
+                          <option key={t.id} value={val}>
+                            {val}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
                 </div>

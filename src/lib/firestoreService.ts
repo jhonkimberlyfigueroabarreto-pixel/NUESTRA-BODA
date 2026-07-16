@@ -300,6 +300,28 @@ export async function saveTables(tables: Table[]): Promise<void> {
   }
 }
 
+export async function syncTablesWithGuestsState(allGuests: AdminGuest[]): Promise<void> {
+  try {
+    const currentTables = await getTables();
+    
+    // For each table, rebuild its guests array based on the guests whose tableName matches this table
+    const updatedTables = currentTables.map(table => {
+      const tableStr = `Mesa ${table.number} - ${table.name}`;
+      const matchingGuests = allGuests.filter(g => g.tableName === tableStr);
+      const guestNames = matchingGuests.map(g => `${g.firstName} ${g.lastName}`);
+      return {
+        ...table,
+        guests: guestNames
+      };
+    });
+
+    await saveTables(updatedTables);
+  } catch (err) {
+    console.error("Error synchronizing tables with guests:", err);
+    throw err;
+  }
+}
+
 // ==========================================
 // 3. RSVPS COLLECTION (Confirmaciones)
 // ==========================================
