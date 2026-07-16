@@ -122,11 +122,14 @@ export default function Itinerary() {
         </div>
 
         {/* Timeline Final Greeting */}
-        <div className="text-center mt-20">
-          <p className="font-serif italic text-base text-gold-700">
-            &ldquo;Cada instante junto a ustedes será eternamente atesorado.&rdquo;
+        <div className="text-center mt-20 max-w-xl mx-auto">
+          <p className="font-serif italic text-base text-gold-700 leading-relaxed">
+            &ldquo;Uno solo puede ser vencido, pero dos pueden resistir. ¡La cuerda de tres hilos no se rompe fácilmente!&rdquo;
           </p>
-          <div className="h-[1px] w-12 bg-gold-300 mx-auto mt-4" />
+          <span className="font-sans text-[11px] tracking-[0.2em] text-gold-600 block mt-2.5 uppercase font-bold">
+            — ECLESIASTÉS 4:12
+          </span>
+          <div className="h-[1px] w-12 bg-gold-300 mx-auto mt-5" />
         </div>
 
       </div>
