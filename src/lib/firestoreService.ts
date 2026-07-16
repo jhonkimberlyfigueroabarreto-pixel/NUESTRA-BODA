@@ -226,7 +226,8 @@ export async function updateGuest(guest: AdminGuest): Promise<void> {
       tableName: guest.tableName || "",
       status: guest.status,
       code: guest.code,
-      wantsReminder: guest.wantsReminder || false
+      wantsReminder: guest.wantsReminder || false,
+      companions: guest.companions || []
     };
     if (guest.notes !== undefined) {
       updatePayload.notes = guest.notes;

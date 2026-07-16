@@ -63,5 +63,6 @@ export interface AdminGuest {
   notes?: string;
   code?: string;
   wantsReminder?: boolean;
+  companions?: string[];
 }
 

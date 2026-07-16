@@ -265,6 +265,7 @@ export default function GuestAdmin() {
   const [formStatus, setFormStatus] = useState<"Pendiente" | "Confirmado" | "No asiste">("Pendiente");
   const [formNotes, setFormNotes] = useState("");
   const [formError, setFormError] = useState("");
+  const [formCompanions, setFormCompanions] = useState<string[]>([]);
 
   // Load state and login check
   useEffect(() => {
@@ -329,6 +330,22 @@ export default function GuestAdmin() {
     setPassword("");
   };
 
+  const handleQuotaChange = (newQuota: number) => {
+    setFormQuota(newQuota);
+    const numCompanions = Math.max(0, newQuota - 1);
+    setFormCompanions((prev) => {
+      const next = [...prev];
+      if (next.length < numCompanions) {
+        while (next.length < numCompanions) {
+          next.push("");
+        }
+      } else if (next.length > numCompanions) {
+        next.splice(numCompanions);
+      }
+      return next;
+    });
+  };
+
   // Form submit (Create or Update)
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -367,6 +384,8 @@ export default function GuestAdmin() {
     setIsLoadingGuests(true);
     try {
       let finalGuests = [...guests];
+      const cleanedCompanions = formCompanions.map(c => c.trim()).filter(Boolean);
+
       if (editingGuest) {
         // Edit mode
         const updatedGuest: AdminGuest = {
@@ -379,7 +398,8 @@ export default function GuestAdmin() {
           tableName: formTableName,
           status: formStatus,
           notes: formNotes.trim(),
-          wantsReminder: editingGuest.wantsReminder || false
+          wantsReminder: editingGuest.wantsReminder || false,
+          companions: cleanedCompanions
         };
 
         finalGuests = guests.map(g => g.id === editingGuest.id ? updatedGuest : g);
@@ -396,7 +416,8 @@ export default function GuestAdmin() {
           tableName: formTableName,
           status: formStatus,
           notes: formNotes.trim(),
-          wantsReminder: false
+          wantsReminder: false,
+          companions: cleanedCompanions
         };
 
         const persistedGuest = await addGuest(newGuestData);
@@ -430,6 +451,7 @@ export default function GuestAdmin() {
     setFormStatus("Pendiente");
     setFormNotes("");
     setFormError("");
+    setFormCompanions([""]); // default companion for quota 2
   };
 
   const handleOpenAddForm = () => {
@@ -447,6 +469,13 @@ export default function GuestAdmin() {
     setFormTableName(guest.tableName || "Sin mesa");
     setFormStatus(guest.status);
     setFormNotes(guest.notes || "");
+    
+    // Set companions
+    const numCompanions = Math.max(0, guest.quota - 1);
+    const companionsList = guest.companions || [];
+    const filledCompanions = Array(numCompanions).fill("").map((_, i) => companionsList[i] || "");
+    setFormCompanions(filledCompanions);
+
     setIsFormOpen(true);
   };
 
@@ -1341,7 +1370,7 @@ export default function GuestAdmin() {
                     <input
                       type="number"
                       value={formQuota}
-                      onChange={(e) => setFormQuota(parseInt(e.target.value) || 0)}
+                      onChange={(e) => handleQuotaChange(parseInt(e.target.value) || 0)}
                       min={1}
                       max={10}
                       className="w-full bg-zinc-950 border border-zinc-800 focus:border-gold-500 text-zinc-100 outline-none p-2.5 rounded-sm"
@@ -1370,6 +1399,38 @@ export default function GuestAdmin() {
                     </select>
                   </div>
                 </div>
+
+                {/* Acompañantes Section */}
+                {formQuota > 1 && (
+                  <div className="space-y-3 p-4 bg-zinc-900/50 border border-zinc-800/80 rounded-sm">
+                    <h4 className="font-serif italic text-xs text-gold-400 uppercase tracking-widest font-bold">
+                      Acompañantes ({formQuota - 1})
+                    </h4>
+                    <p className="text-[10px] text-zinc-500 font-sans">
+                      Registre el nombre de cada acompañante autorizado para este invitado.
+                    </p>
+                    <div className="space-y-2">
+                      {formCompanions.map((comp, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <span className="font-mono text-xs text-zinc-500 w-5 shrink-0">
+                            {idx + 1}.
+                          </span>
+                          <input
+                            type="text"
+                            value={comp}
+                            onChange={(e) => {
+                              const updated = [...formCompanions];
+                              updated[idx] = e.target.value;
+                              setFormCompanions(updated);
+                            }}
+                            placeholder={`Nombre del acompañante ${idx + 1}`}
+                            className="flex-1 bg-zinc-950 border border-zinc-850 focus:border-gold-500 text-zinc-200 outline-none p-2 rounded-sm text-xs"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Status Selection */}
                 <div className="space-y-1">

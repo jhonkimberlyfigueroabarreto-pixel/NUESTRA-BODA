@@ -525,6 +525,8 @@ export default function TableAdmin() {
               filteredBankGuests.map((guest, idx) => {
                 const isAssigned = !unassignedGuests.includes(guest);
                 const currentTable = isAssigned ? tables.find(t => t.guests.includes(guest)) : null;
+                const guestObj = allGuests.find(g => `${g.firstName} ${g.lastName}` === guest);
+                const guestQuota = guestObj ? guestObj.quota : 1;
 
                 return (
                   <div
@@ -541,6 +543,11 @@ export default function TableAdmin() {
                     <div className="flex items-center space-x-2 min-w-0">
                       <div className={`w-2 h-2 rounded-full ${isAssigned ? "bg-zinc-600" : "bg-gold-500"}`} />
                       <span className="font-medium truncate" title={guest}>{guest}</span>
+                      {guestObj && (
+                        <span className="font-sans text-[8px] bg-zinc-950 border border-zinc-850 text-gold-400 px-1 rounded-sm shrink-0 uppercase tracking-widest font-bold">
+                          {guestQuota} {guestQuota === 1 ? "cupo" : "cupos"}
+                        </span>
+                      )}
                     </div>
 
                     {isAssigned ? (
@@ -706,13 +713,22 @@ export default function TableAdmin() {
                             onDragEnd={handleDragEnd}
                             className="flex items-center justify-between p-2 bg-zinc-950 border border-zinc-850 hover:border-gold-500/20 text-xs text-zinc-300 rounded-sm cursor-grab active:cursor-grabbing hover:bg-zinc-900 transition-colors"
                           >
-                            <div className="flex items-center space-x-2 min-w-0">
-                              <span className="font-mono text-[10px] text-zinc-600 shrink-0">{(idx + 1).toString().padStart(2, "0")}</span>
-                              <span className="truncate font-serif italic text-zinc-100 mr-1">{guestName}</span>
-                              {guestObj && (
-                                <span className="font-sans text-[8px] bg-zinc-900 border border-zinc-850 text-gold-400 px-1 rounded-sm shrink-0 uppercase tracking-widest font-bold">
-                                  {guestQuota} {guestQuota === 1 ? "cupo" : "cupos"}
-                                </span>
+                            <div className="flex flex-col min-w-0 flex-1 pr-2">
+                              <div className="flex items-center space-x-2 min-w-0">
+                                <span className="font-mono text-[10px] text-zinc-600 shrink-0">{(idx + 1).toString().padStart(2, "0")}</span>
+                                <span className="truncate font-serif italic text-zinc-100 mr-1">{guestName}</span>
+                                {guestObj && (
+                                  <span className="font-sans text-[8px] bg-zinc-900 border border-zinc-850 text-gold-400 px-1 rounded-sm shrink-0 uppercase tracking-widest font-bold">
+                                    {guestQuota} {guestQuota === 1 ? "cupo" : "cupos"}
+                                  </span>
+                                )}
+                              </div>
+                              {guestObj?.companions && guestObj.companions.length > 0 && (
+                                <div className="pl-6 mt-1 text-[9px] text-zinc-500 flex flex-col gap-0.5 font-sans">
+                                  {guestObj.companions.map((comp, cIdx) => (
+                                    <span key={cIdx} className="truncate">• {comp}</span>
+                                  ))}
+                                </div>
                               )}
                             </div>
 
@@ -1040,13 +1056,25 @@ export default function TableAdmin() {
 
                       <ol className="list-decimal pl-5 font-serif italic text-xs space-y-1 mt-2 text-zinc-800">
                         {t.guests.length > 0 ? (
-                          t.guests.map((g, idx) => (
-                            <li key={idx} className="pl-1">
-                              <span className="font-sans not-italic text-xs text-zinc-900 font-medium pl-1">
-                                {g}
-                              </span>
-                            </li>
-                          ))
+                          t.guests.map((g, idx) => {
+                            const guestObj = allGuests.find(guest => `${guest.firstName} ${guest.lastName}` === g);
+                            return (
+                              <li key={idx} className="pl-1">
+                                <span className="font-sans not-italic text-xs text-zinc-900 font-medium pl-1">
+                                  {g}
+                                </span>
+                                {guestObj?.companions && guestObj.companions.length > 0 && (
+                                  <ul className="list-disc pl-5 mt-0.5 text-[11px] text-zinc-600 font-sans not-italic">
+                                    {guestObj.companions.map((comp, cIdx) => (
+                                      <li key={cIdx} className="pl-0.5 text-zinc-500">
+                                        {comp} <span className="text-[9px] text-zinc-400 font-serif italic">(Acompañante)</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </li>
+                            );
+                          })
                         ) : (
                           <li className="list-none text-zinc-400 text-xs italic pl-0">
                             Mesa vacía / Sin invitados asignados.
@@ -1117,13 +1145,25 @@ export default function TableAdmin() {
 
               <ol className="list-decimal pl-5 font-serif italic text-xs space-y-1 mt-2">
                 {t.guests.length > 0 ? (
-                  t.guests.map((g, idx) => (
-                    <li key={idx} className="pl-1">
-                      <span className="font-sans not-italic text-xs text-black font-medium pl-1 text-left">
-                        {g}
-                      </span>
-                    </li>
-                  ))
+                  t.guests.map((g, idx) => {
+                    const guestObj = allGuests.find(guest => `${guest.firstName} ${guest.lastName}` === g);
+                    return (
+                      <li key={idx} className="pl-1">
+                        <span className="font-sans not-italic text-xs text-black font-medium pl-1 text-left">
+                          {g}
+                        </span>
+                        {guestObj?.companions && guestObj.companions.length > 0 && (
+                          <ul className="list-disc pl-5 mt-0.5 text-[11px] text-zinc-700 font-sans not-italic">
+                            {guestObj.companions.map((comp, cIdx) => (
+                              <li key={cIdx} className="pl-0.5 text-zinc-600 text-left">
+                                {comp} <span className="text-[9px] text-zinc-400 font-serif italic">(Acompañante)</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </li>
+                    );
+                  })
                 ) : (
                   <li className="list-none text-zinc-400 text-xs italic pl-0">
                     Mesa vacía / Sin invitados asignados.
