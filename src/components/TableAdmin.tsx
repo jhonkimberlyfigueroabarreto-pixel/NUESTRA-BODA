@@ -58,6 +58,11 @@ export default function TableAdmin() {
   const [isExportingPDF, setIsExportingPDF] = useState(false);
   const [printError, setPrintError] = useState<string | null>(null);
 
+  // PDF Configuration options
+  const [pdfDocType, setPdfDocType] = useState<"tables" | "guests">("tables");
+  const [pdfPageSize, setPdfPageSize] = useState<"letter" | "a4" | "a3">("a4");
+  const [pdfOrientation, setPdfOrientation] = useState<"portrait" | "landscape">("portrait");
+
   // =========================================================================
   // INITIALIZATION & LIFECYCLE
   // =========================================================================
@@ -391,196 +396,426 @@ export default function TableAdmin() {
     setIsExportingPDF(true);
     setPrintError(null);
     try {
-      // Create PDF in A4 format (210mm x 297mm)
+      // Create PDF dynamically using chosen configurations
       const doc = new jsPDF({
-        orientation: "portrait",
+        orientation: pdfOrientation === "portrait" ? "p" : "l",
         unit: "mm",
-        format: "a4",
+        format: pdfPageSize, // 'letter', 'a4', 'a3' are supported natively by jsPDF
       });
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+
+      // Determine dynamic columns based on orientation, size and document type
+      let cols = 2;
+      if (pdfDocType === "guests") {
+        if (pdfOrientation === "landscape") {
+          cols = pdfPageSize === "a3" ? 3 : 2;
+        } else {
+          cols = pdfPageSize === "a3" ? 2 : 1;
+        }
+      } else {
+        // tables card layout
+        if (pdfOrientation === "landscape") {
+          cols = pdfPageSize === "a3" ? 4 : 3;
+        } else {
+          cols = pdfPageSize === "a3" ? 3 : 2;
+        }
+      }
+
+      const marginX = 12;
+      const gap = 6;
+      const netWidth = pageWidth - (2 * marginX);
+      const colWidth = (netWidth - (cols - 1) * gap) / cols;
 
       // Helper to add clean headers and footers to pages
       const drawHeader = (pageNumber: number) => {
-        // Dark top header background
+        // Dark elegant top header background
         doc.setFillColor(24, 24, 27); // zinc-900
-        doc.rect(0, 0, 210, 35, "F");
+        doc.rect(0, 0, pageWidth, 28, "F");
 
-        // Thin elegant gold border line
+        // Thin elegant gold border line below header
         doc.setFillColor(197, 160, 89); // gold-500
-        doc.rect(0, 0, 210, 2.5, "F");
+        doc.rect(0, 0, pageWidth, 2, "F");
 
-        // Subtitle / Label
+        // Wedding Title / Label
         doc.setTextColor(212, 175, 55); // gold-400
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(8.5);
-        doc.text("BODA DE KIMBERLY & JHON", 105, 11, { align: "center", charSpace: 3 });
+        doc.setFontSize(7.5);
+        doc.text("KIMBERLY & JHON  •  1 DE AGOSTO DE 2026", pageWidth / 2, 9, { align: "center", charSpace: 3.5 });
 
-        // Main Title
+        // Document Main Title
         doc.setTextColor(255, 255, 255);
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(14);
-        doc.text("PLANO DE DISTRIBUCIÓN DE MESAS", 105, 20, { align: "center" });
+        doc.setFontSize(11);
+        const titleText = pdfDocType === "tables" 
+          ? "PLANO DE DISTRIBUCIÓN DE MESAS" 
+          : "LISTADO OFICIAL DE INVITADOS (POR MESA)";
+        doc.text(titleText, pageWidth / 2, 16, { align: "center" });
 
-        // Date / Venue
+        // Subtitle / Venue
         doc.setTextColor(161, 161, 170); // zinc-400
         doc.setFont("helvetica", "italic");
-        doc.setFontSize(8.5);
-        doc.text("Gala Oficial • 1 de Agosto de 2026 • Casona del Prado", 105, 27, { align: "center" });
+        doc.setFontSize(7.5);
+        const sizeLabel = pdfPageSize.toUpperCase();
+        const orientLabel = pdfOrientation === "portrait" ? "VERTICAL" : "HORIZONTAL";
+        doc.text(`Recepción Oficial • Casona del Prado • Formato: ${sizeLabel} (${orientLabel})`, pageWidth / 2, 22, { align: "center" });
 
-        // Footer Page Numbering
-        doc.setTextColor(113, 113, 122); // zinc-500
+        // Footer Page Numbering & Legal Note
+        doc.setTextColor(120, 120, 120);
         doc.setFont("helvetica", "normal");
-        doc.setFontSize(8);
-        doc.text(`Documento Oficial de Organización  |  Página ${pageNumber}`, 105, 287, { align: "center" });
+        doc.setFontSize(7);
+        doc.text(`Documento de Organización de Boda  |  Página ${pageNumber}  |  Generado: ${new Date().toLocaleDateString("es-ES")}`, pageWidth / 2, pageHeight - 8, { align: "center" });
       };
 
       let pageCount = 1;
       drawHeader(pageCount);
 
-      let y = 45; // Starting top coordinate for content
+      // We maintain the current Y position for each column
+      let colY = Array(cols).fill(34); // starts content at Y=34 under the 28mm header
 
-      for (let i = 0; i < tables.length; i++) {
-        const t = tables[i];
+      if (pdfDocType === "tables") {
+        for (let i = 0; i < tables.length; i++) {
+          const t = tables[i];
 
-        // Retrieve guests & their companion lists for this table
-        const tableGuestsData = t.guests.map((gName) => {
-          const guestObj = allGuests.find(guest => `${guest.firstName} ${guest.lastName}` === gName);
-          const companions = guestObj?.companions || [];
-          const quota = guestObj ? guestObj.quota : 1;
-          return { name: gName, companions, quota };
-        });
+          // Gather guest list and companions for this table
+          const tableGuestsData = t.guests.map((gName) => {
+            const guestObj = allGuests.find(guest => `${guest.firstName} ${guest.lastName}` === gName);
+            const companions = guestObj?.companions || [];
+            const quota = guestObj ? guestObj.quota : 1;
+            return { name: gName, companions, quota };
+          });
 
-        const totalCompanions = tableGuestsData.reduce((sum, g) => sum + g.companions.length, 0);
-        const occupied = tableGuestsData.reduce((sum, g) => {
-          // If the guest is assigned but we can't find them, we count at least 1
-          return sum + g.quota;
-        }, 0);
-        const capacity = t.capacity || 10;
-        const available = Math.max(0, capacity - occupied);
+          const totalCompanions = tableGuestsData.reduce((sum, g) => sum + g.companions.length, 0);
+          const occupied = tableGuestsData.reduce((sum, g) => sum + g.quota, 0);
+          const capacity = t.capacity || 10;
+          const available = Math.max(0, capacity - occupied);
 
-        // Calculate dynamic height of this table card block
-        // Base padding/header/stats is ~20mm. Each guest row is 6mm, each companion row is 5mm
-        const blockHeight = 22 + (tableGuestsData.length * 6.5) + (totalCompanions * 5);
+          // Card height calculation:
+          // Header section: ~10mm
+          // Subtitle (if description): ~4.5mm
+          // Stats row: ~5.5mm
+          // Table items: each main guest is ~5.5mm. Each companion is ~4.5mm
+          // If empty: ~10mm
+          // Padding/spacing: ~6mm
+          let blockHeight = 10;
+          if (t.description) blockHeight += 4.5;
+          blockHeight += 5.5; // stats rect height
+          if (tableGuestsData.length === 0) {
+            blockHeight += 10; // "Mesa vacía" message
+          } else {
+            blockHeight += (tableGuestsData.length * 5.5) + (totalCompanions * 4.5);
+          }
+          blockHeight += 6; // padding spacing
 
-        // Page break checker (avoid orphaned content near the bottom)
-        if (y + blockHeight > 270) {
-          doc.addPage();
-          pageCount++;
-          drawHeader(pageCount);
-          y = 45;
-        }
+          // Find column with minimum Y coordinate on the current page
+          let minColIdx = 0;
+          let minY = colY[0];
+          for (let c = 1; c < cols; c++) {
+            if (colY[c] < minY) {
+              minY = colY[c];
+              minColIdx = c;
+            }
+          }
 
-        // Draw Table Card rounded container
-        doc.setDrawColor(228, 228, 231); // zinc-200
-        doc.setFillColor(252, 252, 253); // zinc-50 / super light gray
-        doc.roundedRect(15, y, 180, blockHeight, 2, 2, "FD");
+          // If the block overflows the current page, add a page break
+          if (minY + blockHeight > pageHeight - 15) {
+            doc.addPage();
+            pageCount++;
+            drawHeader(pageCount);
+            colY = Array(cols).fill(34);
+            minColIdx = 0;
+            minY = colY[0];
+          }
 
-        // Draw Left elegant gold border tag
-        doc.setFillColor(197, 160, 89); // gold-500
-        doc.rect(15, y, 2.2, blockHeight, "F");
+          const cardX = marginX + minColIdx * (colWidth + gap);
+          const cardY = minY;
 
-        // Table Title text
-        doc.setTextColor(24, 24, 27); // zinc-900
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(11);
-        doc.text(`Mesa ${t.number}: ${t.name}`, 22, y + 8);
+          // Draw elegant rounded card container
+          doc.setDrawColor(212, 175, 55); // gold-400
+          doc.setLineWidth(0.3);
+          doc.setFillColor(255, 255, 255);
+          doc.roundedRect(cardX, cardY, colWidth, blockHeight, 1.5, 1.5, "FD");
 
-        // Table Description if exists
-        if (t.description) {
-          doc.setTextColor(113, 113, 122); // zinc-505
-          doc.setFont("helvetica", "italic");
-          doc.setFontSize(8.5);
-          const desc = t.description.length > 70 ? t.description.substring(0, 67) + "..." : t.description;
-          doc.text(desc, 22, y + 13.5);
-        }
+          // Golden top border highlight tag
+          doc.setFillColor(197, 160, 89); // gold-500
+          doc.rect(cardX, cardY, colWidth, 1.5, "F");
 
-        // Stats Badge (aligned to the right side of the card)
-        doc.setDrawColor(197, 160, 89); // gold-300
-        doc.setFillColor(253, 250, 242); // gold-50 / cream
-        doc.roundedRect(110, y + 3, 80, 12, 1, 1, "FD");
-
-        doc.setTextColor(120, 90, 40); // gold-800
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(8);
-        doc.text(`Aforo: ${capacity}  |  Ocupados: ${occupied}  |  Disponibles: ${available}`, 113, y + 10.5);
-
-        // Thin separating line below table card header
-        doc.setDrawColor(244, 244, 245); // zinc-100
-        doc.line(15, y + 17.5, 195, y + 17.5);
-
-        // Draw list of seated individuals
-        let currentY = y + 23.5;
-        if (tableGuestsData.length === 0) {
-          doc.setTextColor(161, 161, 170); // zinc-400
-          doc.setFont("helvetica", "italic");
+          // Table Number & Name
+          doc.setTextColor(24, 24, 27); // zinc-900
+          doc.setFont("helvetica", "bold");
           doc.setFontSize(9);
-          doc.text("Mesa vacía / Sin invitados asignados.", 25, currentY);
-        } else {
-          tableGuestsData.forEach((g, gIdx) => {
-            // Index
+          doc.text(`MESA ${t.number}: ${t.name.toUpperCase()}`, cardX + 4, cardY + 6);
+
+          let currentY = cardY + 10.5;
+
+          // Description if present
+          if (t.description) {
+            doc.setTextColor(113, 113, 122); // zinc-500
+            doc.setFont("helvetica", "italic");
+            doc.setFontSize(7.5);
+            // Truncate if too long for column width
+            const maxChars = Math.floor(colWidth * 2);
+            const descText = t.description.length > maxChars ? t.description.substring(0, maxChars - 3) + "..." : t.description;
+            doc.text(descText, cardX + 4, currentY);
+            currentY += 4.5;
+          }
+
+          // Divider
+          doc.setDrawColor(240, 240, 240); // light gray
+          doc.setLineWidth(0.2);
+          doc.line(cardX + 4, currentY - 1, cardX + colWidth - 4, currentY - 1);
+
+          // Seat metrics (Aforo / Ocupados / Disponibles)
+          doc.setFillColor(250, 250, 250); // super light gray background
+          doc.roundedRect(cardX + 4, currentY, colWidth - 8, 5.5, 0.5, 0.5, "F");
+
+          doc.setTextColor(120, 90, 40); // gold-800
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(6.5);
+          doc.text(`Aforo: ${capacity}   |   Ocupados: ${occupied}   |   Libres: ${available}`, cardX + 6, currentY + 4);
+          currentY += 8.5;
+
+          // List of Guests
+          if (tableGuestsData.length === 0) {
+            doc.setTextColor(161, 161, 170); // zinc-400
+            doc.setFont("helvetica", "italic");
+            doc.setFontSize(7.5);
+            doc.text("Mesa vacía / Sin invitados asignados.", cardX + 6, currentY);
+            currentY += 7;
+          } else {
+            tableGuestsData.forEach((g, gIdx) => {
+              // Number indicator
+              doc.setTextColor(140, 140, 140);
+              doc.setFont("helvetica", "normal");
+              doc.setFontSize(7.5);
+              doc.text(`${gIdx + 1}.`, cardX + 5, currentY);
+
+              // Principal guest name
+              doc.setTextColor(24, 24, 27); // zinc-900
+              doc.setFont("helvetica", "bold");
+              doc.setFontSize(8);
+              const maxNameChars = Math.floor(colWidth * 0.45);
+              const mainName = g.name.length > maxNameChars ? g.name.substring(0, maxNameChars - 3) + "..." : g.name;
+              doc.text(mainName, cardX + 8, currentY);
+
+              // Cupos indicator (only if > 1)
+              if (g.quota > 1) {
+                doc.setTextColor(197, 160, 89); // gold-500
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(6.5);
+                doc.text(`(${g.quota} cupos)`, cardX + colWidth - 18, currentY);
+              }
+
+              currentY += 5.5;
+
+              // Companions
+              g.companions.forEach((companionName) => {
+                // companion dot
+                doc.setFillColor(197, 160, 89); // gold-500
+                doc.circle(cardX + 11, currentY - 1.2, 0.5, "F");
+
+                // companion name
+                doc.setTextColor(80, 80, 80);
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(7.5);
+                const maxCompChars = Math.floor(colWidth * 0.4);
+                const compName = companionName.length > maxCompChars ? companionName.substring(0, maxCompChars - 3) + "..." : companionName;
+                doc.text(compName, cardX + 13, currentY);
+
+                // companion label tag
+                doc.setTextColor(160, 160, 160);
+                doc.setFont("helvetica", "italic");
+                doc.setFontSize(6.5);
+                doc.text("(Acomp.)", cardX + colWidth - 18, currentY);
+
+                currentY += 4.5;
+              });
+            });
+          }
+
+          // Save current column height
+          colY[minColIdx] = cardY + blockHeight + gap;
+        }
+      } else {
+        // PDF GUEST DIRECTORY LIST
+        for (let i = 0; i < tables.length; i++) {
+          const t = tables[i];
+
+          // Gather guest list and companions for this table
+          const tableGuestsData = t.guests.map((gName) => {
+            const guestObj = allGuests.find(guest => `${guest.firstName} ${guest.lastName}` === gName);
+            const companions = guestObj?.companions || [];
+            const quota = guestObj ? guestObj.quota : 1;
+            const status = guestObj ? guestObj.status : "Pendiente";
+            return { name: gName, companions, quota, status };
+          });
+
+          const totalCompanions = tableGuestsData.reduce((sum, g) => sum + g.companions.length, 0);
+          const occupied = tableGuestsData.reduce((sum, g) => sum + g.quota, 0);
+
+          // Height calculation:
+          // Header banner: ~8.5mm
+          // Table column labels: ~5mm
+          // Rows: each guest is ~6mm, companions are ~4.5mm each
+          // If empty: ~8mm
+          // Padding/spacing: ~6mm
+          let blockHeight = 8.5 + 5;
+          if (tableGuestsData.length === 0) {
+            blockHeight += 8;
+          } else {
+            blockHeight += (tableGuestsData.length * 6) + (totalCompanions * 4.5);
+          }
+          blockHeight += 6; // padding spacer
+
+          // Find column with minimum Y coordinate on current page
+          let minColIdx = 0;
+          let minY = colY[0];
+          for (let c = 1; c < cols; c++) {
+            if (colY[c] < minY) {
+              minY = colY[c];
+              minColIdx = c;
+            }
+          }
+
+          // If block overflows current page, break
+          if (minY + blockHeight > pageHeight - 15) {
+            doc.addPage();
+            pageCount++;
+            drawHeader(pageCount);
+            colY = Array(cols).fill(34);
+            minColIdx = 0;
+            minY = colY[0];
+          }
+
+          const cardX = marginX + minColIdx * (colWidth + gap);
+          const cardY = minY;
+
+          // Draw table container box
+          doc.setDrawColor(212, 175, 55); // gold border
+          doc.setLineWidth(0.25);
+          doc.setFillColor(255, 255, 255);
+          doc.roundedRect(cardX, cardY, colWidth, blockHeight, 1, 1, "FD");
+
+          // Header band of the table block
+          doc.setFillColor(244, 244, 245); // zinc-100
+          doc.rect(cardX, cardY, colWidth, 7.5, "F");
+          doc.setDrawColor(197, 160, 89); // gold-500
+          doc.setLineWidth(0.4);
+          doc.line(cardX, cardY + 7.5, cardX + colWidth, cardY + 7.5);
+
+          // Table title text
+          doc.setTextColor(24, 24, 27); // zinc-900
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(8);
+          doc.text(`MESA ${t.number}: ${t.name.toUpperCase()}  (Aforo: ${t.capacity || 10} | Ocupados: ${occupied})`, cardX + 3, cardY + 4.8);
+
+          let currentY = cardY + 12;
+
+          if (tableGuestsData.length === 0) {
+            doc.setTextColor(161, 161, 170); // zinc-400
+            doc.setFont("helvetica", "italic");
+            doc.setFontSize(7.5);
+            doc.text("Mesa vacía / Sin invitados asignados.", cardX + 5, currentY);
+            currentY += 6;
+          } else {
+            // Draw compact column headers inside column block
             doc.setTextColor(113, 113, 122); // zinc-500
             doc.setFont("helvetica", "bold");
-            doc.setFontSize(9);
-            doc.text(`${gIdx + 1}.`, 23, currentY);
+            doc.setFontSize(6.5);
+            doc.text("INVITADO PRINCIPAL & ACOMPAÑANTES", cardX + 3, currentY - 1);
+            doc.text("ESTADO", cardX + colWidth - 28, currentY - 1);
+            doc.text("CUPOS", cardX + colWidth - 9, currentY - 1);
 
-            // Principal Guest Name
-            doc.setTextColor(24, 24, 27); // zinc-900
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(9.5);
-            doc.text(g.name, 28, currentY);
+            // Divider
+            doc.setDrawColor(240, 240, 240);
+            doc.setLineWidth(0.2);
+            doc.line(cardX + 2, currentY + 0.5, cardX + colWidth - 2, currentY + 0.5);
+            currentY += 5;
 
-            // If guest has custom quota showing
-            if (g.quota > 1) {
-              doc.setTextColor(197, 160, 89); // gold-500
+            tableGuestsData.forEach((g, gIdx) => {
+              // Index & Guest Name
+              doc.setTextColor(24, 24, 27); // zinc-900
               doc.setFont("helvetica", "bold");
               doc.setFontSize(7.5);
-              doc.text(`(${g.quota} cupos asignados)`, 105, currentY);
-            }
+              const maxNameChars = Math.floor(colWidth * 0.45);
+              const displayName = g.name.length > maxNameChars ? g.name.substring(0, maxNameChars - 3) + "..." : g.name;
+              doc.text(`${gIdx + 1}. ${displayName}`, cardX + 3, currentY);
 
-            currentY += 6.5;
+              // Status label with elegant color
+              let statusLabel = g.status.toUpperCase();
+              if (statusLabel === "CONFIRMADO") {
+                doc.setTextColor(16, 124, 65); // green
+              } else if (statusLabel === "PENDIENTE") {
+                doc.setTextColor(197, 160, 89); // gold
+              } else {
+                doc.setTextColor(180, 40, 40); // red
+              }
+              doc.setFont("helvetica", "bold");
+              doc.setFontSize(6.5);
+              doc.text(statusLabel, cardX + colWidth - 28, currentY);
 
-            // Render companions
-            g.companions.forEach((comp) => {
-              // Companion elegant bullet
-              doc.setFillColor(197, 160, 89); // gold-500
-              doc.circle(34, currentY - 1.2, 0.7, "F");
+              // Quota
+              doc.setTextColor(24, 24, 27);
+              doc.setFont("helvetica", "bold");
+              doc.setFontSize(7.5);
+              doc.text(`${g.quota}`, cardX + colWidth - 7, currentY);
 
-              // Companion Name
-              doc.setTextColor(63, 63, 70); // zinc-700
-              doc.setFont("helvetica", "normal");
-              doc.setFontSize(9);
-              doc.text(comp, 38, currentY);
+              currentY += 6;
 
-              // Indicator tag
-              doc.setTextColor(161, 161, 170); // zinc-400
-              doc.setFont("helvetica", "italic");
-              doc.setFontSize(8);
-              doc.text("(Acompañante)", 105, currentY);
+              // Render companions
+              g.companions.forEach((comp) => {
+                // companion dot marker
+                doc.setFillColor(197, 160, 89); // gold-500
+                doc.circle(cardX + 7, currentY - 1.1, 0.4, "F");
 
-              currentY += 5;
+                // companion name
+                doc.setTextColor(100, 100, 100);
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(7);
+                const maxCompChars = Math.floor(colWidth * 0.4);
+                const displayComp = comp.length > maxCompChars ? comp.substring(0, maxCompChars - 3) + "..." : comp;
+                doc.text(displayComp, cardX + 9, currentY);
+
+                // companion label tag
+                doc.setTextColor(160, 160, 160);
+                doc.setFont("helvetica", "italic");
+                doc.setFontSize(6);
+                doc.text("(Acompañante)", cardX + colWidth - 28, currentY);
+
+                currentY += 4.5;
+              });
+
+              // Separator between guest groups
+              if (gIdx < tableGuestsData.length - 1) {
+                doc.setDrawColor(245, 245, 245);
+                doc.setLineWidth(0.15);
+                doc.line(cardX + 3, currentY - 1.5, cardX + colWidth - 3, currentY - 1.5);
+              }
             });
-          });
-        }
+          }
 
-        // Add bottom spacing before drawing the next table block
-        y += blockHeight + 6;
+          colY[minColIdx] = cardY + blockHeight + gap;
+        }
       }
 
-      // Add general summary stats at the end of document
-      const summaryHeight = 26;
-      if (y + summaryHeight > 270) {
+      // Add General Summary box on last page
+      let maxY = Math.max(...colY);
+      const summaryHeight = 20;
+
+      if (maxY + summaryHeight > pageHeight - 15) {
         doc.addPage();
         pageCount++;
         drawHeader(pageCount);
-        y = 45;
+        maxY = 34;
       }
 
-      // Render summary card container
       doc.setFillColor(24, 24, 27); // zinc-900
-      doc.roundedRect(15, y, 180, summaryHeight, 1.5, 1.5, "F");
+      doc.roundedRect(marginX, maxY + 2, netWidth, summaryHeight, 1.2, 1.2, "F");
 
-      // Small golden header bar for summary
+      // Left Gold accent bar
       doc.setFillColor(197, 160, 89); // gold-500
-      doc.rect(15, y, 180, 1.5, "F");
+      doc.rect(marginX, maxY + 2, 2.5, summaryHeight, "F");
 
       const totalTables = tables.length;
       const grandTotalOccupied = tables.reduce((sum, tableItem) => {
@@ -594,18 +829,22 @@ export default function TableAdmin() {
 
       doc.setTextColor(212, 175, 55); // gold-400
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      doc.text("RESUMEN DE DISTRIBUCIÓN GENERAL", 25, y + 8);
+      doc.setFontSize(8);
+      doc.text("RESUMEN GENERAL DE CONTROL", marginX + 6, maxY + 8);
 
-      doc.setTextColor(255, 255, 255);
+      doc.setTextColor(244, 244, 245); // zinc-100
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(9.5);
-      doc.text(`Total Mesas: ${totalTables}`, 25, y + 17);
-      doc.text(`Total Asientos Ocupados: ${grandTotalOccupied}`, 80, y + 17);
-      doc.text(`Asientos Disponibles: ${grandTotalAvailable} / ${grandTotalCapacity}`, 140, y + 17);
+      doc.setFontSize(7.5);
+      doc.text(`Total Mesas: ${totalTables}`, marginX + 6, maxY + 15);
+      doc.text(`Cupos Asignados: ${grandTotalOccupied}`, marginX + (netWidth * 0.35), maxY + 15);
+      doc.text(`Asientos Disponibles: ${grandTotalAvailable} de ${grandTotalCapacity} totales`, marginX + (netWidth * 0.65), maxY + 15);
 
-      // Trigger standard download in browser
-      doc.save("Plano_Mesas_Boda_Kimberly_Jhon.pdf");
+      // Trigger download
+      const sizeLabel = pdfPageSize.toUpperCase();
+      const filename = pdfDocType === "tables" 
+        ? `Plano_Mesas_Boda_${sizeLabel}.pdf` 
+        : `Lista_Invitados_Boda_${sizeLabel}.pdf`;
+      doc.save(filename);
     } catch (err: any) {
       console.error("Error during PDF generation:", err);
       setPrintError(err?.message || "Ocurrió un error inesperado al intentar construir el archivo PDF.");
@@ -1222,16 +1461,16 @@ export default function TableAdmin() {
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
-              className="bg-white text-zinc-950 p-6 md:p-8 rounded-sm shadow-2xl relative max-w-4xl w-full max-h-[90vh] overflow-y-auto text-left flex flex-col"
+              className="bg-white text-zinc-950 p-6 md:p-8 rounded-sm shadow-2xl relative max-w-5xl w-full max-h-[95vh] overflow-y-auto text-left flex flex-col"
             >
               {/* Header control buttons */}
               <div className="flex flex-wrap justify-between items-center border-b border-zinc-200 pb-4 mb-4 gap-3">
                 <div>
                   <h3 className="font-serif text-lg font-bold text-zinc-900">
-                    Vista Previa de Impresión
+                    Configuración de Impresión & Exportación
                   </h3>
                   <p className="font-sans text-xs text-zinc-500">
-                    Así se verá el plano de mesas físico impreso en papel.
+                    Diseñe y descargue un documento PDF profesional optimizado, evitando el desperdicio de papel.
                   </p>
                 </div>
                 
@@ -1239,26 +1478,19 @@ export default function TableAdmin() {
                   <button
                     onClick={generatePDF}
                     disabled={isExportingPDF}
-                    className="px-4 py-2 bg-gold-500 hover:bg-gold-600 disabled:bg-zinc-300 text-zinc-950 text-xs font-bold uppercase tracking-widest flex items-center gap-1.5 cursor-pointer rounded-xs transition-all shadow-sm"
+                    className="px-5 py-2.5 bg-gold-500 hover:bg-gold-600 disabled:bg-zinc-300 text-zinc-950 text-xs font-bold uppercase tracking-widest flex items-center gap-1.5 cursor-pointer rounded-xs transition-all shadow-sm"
                   >
                     <FileSpreadsheet className="w-4 h-4" />
-                    <span>{isExportingPDF ? "Generando PDF..." : "Descargar PDF (Recomendado)"}</span>
-                  </button>
-                  <button
-                    onClick={triggerPrint}
-                    className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-bold uppercase tracking-widest flex items-center gap-1.5 cursor-pointer rounded-xs transition-all"
-                  >
-                    <Printer className="w-4 h-4" />
-                    <span>Imprimir Navegador</span>
+                    <span>{isExportingPDF ? "Generando..." : "Descargar Documento PDF"}</span>
                   </button>
                   <button
                     onClick={() => {
                       setIsPrintPreviewOpen(false);
                       setPrintError(null);
                     }}
-                    className="px-4 py-2 border border-zinc-300 hover:border-zinc-400 text-zinc-600 text-xs font-bold uppercase tracking-widest cursor-pointer rounded-xs transition-all"
+                    className="px-4 py-2.5 border border-zinc-300 hover:border-zinc-400 text-zinc-600 text-xs font-bold uppercase tracking-widest cursor-pointer rounded-xs transition-all"
                   >
-                    Cerrar Vista Previa
+                    Cerrar
                   </button>
                 </div>
               </div>
@@ -1268,90 +1500,301 @@ export default function TableAdmin() {
                 <div className="mb-4 p-3.5 bg-red-50 border-l-4 border-red-500 text-red-800 text-xs font-sans rounded-sm flex items-start gap-2.5">
                   <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-bold">Error de impresión/exportación:</p>
+                    <p className="font-bold">Error de exportación:</p>
                     <p className="mt-0.5 text-red-700">{printError}</p>
                   </div>
                 </div>
               )}
 
-              {/* PRINTABLE PREVIEW CONTENT CONTAINER */}
-              <div className="flex-1 bg-white p-6 border border-zinc-200 rounded-sm overflow-y-auto max-h-[55vh]">
-                <div className="text-center mb-8 border-b-2 border-zinc-900 pb-6">
-                  <span className="font-serif text-xs tracking-[0.4em] text-zinc-500 uppercase block mb-1">
-                    BODA DE KIMBERLY & JHON
-                  </span>
-                  <h1 className="font-serif text-2xl font-normal text-zinc-900 uppercase tracking-widest">
-                    Plano de Distribución de Mesas
-                  </h1>
-                  <p className="font-sans text-[10px] text-zinc-400 tracking-wider uppercase mt-1">
-                    Gala Oficial • 1 de Agosto de 2026 • Casona del Prado
-                  </p>
-                </div>
+              <div className="flex flex-col lg:flex-row gap-6 overflow-hidden flex-1">
+                {/* 1. CONFIGURATION SIDEBAR */}
+                <div className="w-full lg:w-72 shrink-0 space-y-5 bg-zinc-50 p-5 rounded-sm border border-zinc-200">
+                  <h4 className="font-sans text-[10px] uppercase tracking-widest text-zinc-500 font-bold">
+                    Opciones de Impresión
+                  </h4>
 
-                {/* Print layout 2-column or 3-column list */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                  {tables.map((t) => (
-                    <div key={t.id} className="border-t border-zinc-900 pt-3 flex flex-col gap-1 text-zinc-900">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h4 className="font-serif text-sm font-bold uppercase tracking-wide">
-                            Mesa {t.number}: {t.name}
-                          </h4>
-                          {t.description && (
-                            <p className="font-sans text-[9px] text-zinc-500 italic">
-                              {t.description}
-                            </p>
-                          )}
-                        </div>
-                        <span className="font-mono text-[10px] bg-zinc-100 border border-zinc-300 px-2 py-0.5 font-bold rounded-xs shrink-0 text-zinc-800">
-                          Puestos: {t.guests.reduce((sum, gName) => {
-                            const g = allGuests.find(guest => `${guest.firstName} ${guest.lastName}` === gName);
-                            return sum + (g ? g.quota : 1);
-                          }, 0)} / {t.capacity}
-                        </span>
-                      </div>
-
-                      <ol className="list-decimal pl-5 font-serif italic text-xs space-y-1 mt-2 text-zinc-800">
-                        {t.guests.length > 0 ? (
-                          t.guests.map((g, idx) => {
-                            const guestObj = allGuests.find(guest => `${guest.firstName} ${guest.lastName}` === g);
-                            return (
-                              <li key={idx} className="pl-1">
-                                <span className="font-sans not-italic text-xs text-zinc-900 font-medium pl-1">
-                                  {g}
-                                </span>
-                                {guestObj?.companions && guestObj.companions.length > 0 && (
-                                  <ul className="list-disc pl-5 mt-0.5 text-[11px] text-zinc-600 font-sans not-italic">
-                                    {guestObj.companions.map((comp, cIdx) => (
-                                      <li key={cIdx} className="pl-0.5 text-zinc-500">
-                                        {comp} <span className="text-[9px] text-zinc-400 font-serif italic">(Acompañante)</span>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                )}
-                              </li>
-                            );
-                          })
-                        ) : (
-                          <li className="list-none text-zinc-400 text-xs italic pl-0">
-                            Mesa vacía / Sin invitados asignados.
-                          </li>
-                        )}
-                      </ol>
+                  {/* Document Type Selector */}
+                  <div className="space-y-2">
+                    <label className="font-sans text-xs font-semibold text-zinc-750 block">
+                      Tipo de Documento
+                    </label>
+                    <div className="grid grid-cols-1 gap-1.5">
+                      <button
+                        onClick={() => setPdfDocType("tables")}
+                        className={`px-3 py-2 text-xs font-bold rounded-xs cursor-pointer border text-center transition-all ${
+                          pdfDocType === "tables"
+                            ? "bg-zinc-900 text-white border-zinc-900 shadow-xs"
+                            : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-100"
+                        }`}
+                      >
+                        Plano de Mesas (Tarjetas)
+                      </button>
+                      <button
+                        onClick={() => setPdfDocType("guests")}
+                        className={`px-3 py-2 text-xs font-bold rounded-xs cursor-pointer border text-center transition-all ${
+                          pdfDocType === "guests"
+                            ? "bg-zinc-900 text-white border-zinc-900 shadow-xs"
+                            : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-100"
+                        }`}
+                      >
+                        Lista de Invitados (Grupos)
+                      </button>
                     </div>
-                  ))}
+                  </div>
+
+                  {/* Size Selector */}
+                  <div className="space-y-2">
+                    <label className="font-sans text-xs font-semibold text-zinc-700 block">
+                      Tamaño de Papel
+                    </label>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {(["letter", "a4", "a3"] as const).map((size) => (
+                        <button
+                          key={size}
+                          onClick={() => setPdfPageSize(size)}
+                          className={`px-2 py-1.5 text-xs font-bold rounded-xs cursor-pointer border text-center uppercase tracking-wider transition-all ${
+                            pdfPageSize === size
+                              ? "bg-gold-500 border-gold-600 text-zinc-950 font-black"
+                              : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-100"
+                          }`}
+                        >
+                          {size === "letter" ? "Carta" : size}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Orientation Selector */}
+                  <div className="space-y-2">
+                    <label className="font-sans text-xs font-semibold text-zinc-700 block">
+                      Orientación de Página
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => setPdfOrientation("portrait")}
+                        className={`px-3 py-2 text-xs font-bold rounded-xs cursor-pointer border text-center transition-all ${
+                          pdfOrientation === "portrait"
+                            ? "bg-zinc-900 text-white border-zinc-900"
+                            : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-100"
+                        }`}
+                      >
+                        Vertical
+                      </button>
+                      <button
+                        onClick={() => setPdfOrientation("landscape")}
+                        className={`px-3 py-2 text-xs font-bold rounded-xs cursor-pointer border text-center transition-all ${
+                          pdfOrientation === "landscape"
+                            ? "bg-zinc-900 text-white border-zinc-900"
+                            : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-100"
+                        }`}
+                      >
+                        Horizontal
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Hint details about column structure and sheets */}
+                  <div className="bg-gold-50/50 border border-gold-200/50 p-3.5 rounded-sm text-[11px] text-zinc-650 space-y-1.5 font-sans leading-relaxed">
+                    <p className="font-bold text-zinc-800 flex items-center gap-1">
+                      <Sparkles className="w-3.5 h-3.5 text-gold-600" />
+                      Distribución Inteligente
+                    </p>
+                    <p>
+                      El sistema calcula el aforo y reorganiza las mesas en{" "}
+                      <strong className="text-zinc-900 font-semibold">
+                        {pdfDocType === "tables"
+                          ? pdfOrientation === "landscape"
+                            ? pdfPageSize === "a3" ? "4 columnas" : "3 columnas"
+                            : pdfPageSize === "a3" ? "3 columnas" : "2 columnas"
+                          : pdfOrientation === "landscape"
+                            ? pdfPageSize === "a3" ? "3 columnas" : "2 columnas"
+                            : pdfPageSize === "a3" ? "2 columnas" : "1 columna"
+                        }
+                      </strong>.
+                    </p>
+                    <p>
+                      Optimizado para ocupar entre{" "}
+                      <strong className="text-zinc-900 font-semibold">1 y 3 hojas</strong>, evitando el desperdicio de papel.
+                    </p>
+                  </div>
                 </div>
 
-                {/* Print Footer Summary */}
-                <div className="border-t-2 border-zinc-900 mt-10 pt-4 flex justify-between text-[10px] text-zinc-500 font-sans font-bold uppercase tracking-wider">
-                  <span>Total Mesas: {tables.length}</span>
-                  <span>Total Cupos Ocupados: {tables.reduce((sum, tableItem) => {
-                    return sum + tableItem.guests.reduce((s, gName) => {
-                      const g = allGuests.find(guest => `${guest.firstName} ${guest.lastName}` === gName);
-                      return s + (g ? g.quota : 1);
-                    }, 0);
-                  }, 0)}</span>
-                  <span>Aforo Permitido: {tables.reduce((sum, t) => sum + (t.capacity || 10), 0)} Sillas</span>
+                {/* 2. REAL-TIME INTERACTIVE VIEW */}
+                <div className="flex-1 bg-zinc-100 p-4 md:p-6 rounded-sm border border-zinc-200 overflow-y-auto max-h-[60vh] flex justify-center">
+                  <div className="bg-white shadow-md p-6 max-w-2xl w-full border border-zinc-350 relative text-zinc-950 font-sans">
+                    {/* Golden top border on preview */}
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gold-500" />
+
+                    {/* Preview Header */}
+                    <div className="text-center mb-6 pb-5 border-b border-zinc-200">
+                      <span className="font-serif text-[9px] tracking-[0.4em] text-gold-650 uppercase block mb-1 font-bold">
+                        KIMBERLY & JHON  •  1 DE AGOSTO DE 2026
+                      </span>
+                      <h1 className="font-serif text-lg font-normal uppercase tracking-wider text-zinc-900">
+                        {pdfDocType === "tables"
+                          ? "Plano de Distribución de Mesas"
+                          : "Listado de Invitados por Mesa"}
+                      </h1>
+                      <p className="font-sans text-[9px] text-zinc-400 uppercase tracking-widest mt-1">
+                        Recepción Oficial • Casona del Prado • Formato: {pdfPageSize.toUpperCase()} ({pdfOrientation === "portrait" ? "Vertical" : "Horizontal"})
+                      </p>
+                    </div>
+
+                    {pdfDocType === "tables" ? (
+                      /* Plano de Mesas Preview Layout */
+                      <div className={`grid gap-4 ${
+                        pdfOrientation === "landscape" ? "grid-cols-2" : "grid-cols-1"
+                      }`}>
+                        {tables.map((t) => {
+                          const tableGuestsData = t.guests.map((gName) => {
+                            const guestObj = allGuests.find(guest => `${guest.firstName} ${guest.lastName}` === gName);
+                            const companions = guestObj?.companions || [];
+                            const quota = guestObj ? guestObj.quota : 1;
+                            return { name: gName, companions, quota };
+                          });
+                          const occupied = tableGuestsData.reduce((sum, g) => sum + g.quota, 0);
+
+                          return (
+                            <div key={t.id} className="border border-gold-300 p-3.5 rounded-sm relative bg-white flex flex-col gap-1.5 shadow-xs">
+                              <div className="absolute top-0 left-0 right-0 h-[3px] bg-gold-400" />
+                              <div className="flex justify-between items-start pt-1">
+                                <h4 className="font-serif text-xs font-bold uppercase tracking-wide text-zinc-950">
+                                  Mesa {t.number}: {t.name}
+                                </h4>
+                                <span className="font-mono text-[9px] bg-zinc-50 border border-zinc-200 px-1.5 py-0.5 rounded-sm text-zinc-700 font-bold">
+                                  {occupied}/{t.capacity}
+                                </span>
+                              </div>
+                              {t.description && (
+                                <p className="text-[9px] text-zinc-500 italic">
+                                  {t.description}
+                                </p>
+                              )}
+                              <hr className="border-zinc-100 my-1" />
+                              <ol className="list-decimal pl-4 text-[10px] space-y-1.5 font-sans">
+                                {tableGuestsData.length > 0 ? (
+                                  tableGuestsData.map((g, gIdx) => (
+                                    <li key={gIdx} className="text-zinc-900 font-medium">
+                                      <div className="flex justify-between items-center">
+                                        <span>{g.name}</span>
+                                        {g.quota > 1 && (
+                                          <span className="text-[8px] text-gold-600 font-semibold font-mono">
+                                            ({g.quota} cupos)
+                                          </span>
+                                        )}
+                                      </div>
+                                      {g.companions.length > 0 && (
+                                        <ul className="list-disc pl-4 mt-0.5 text-[9px] text-zinc-500 font-normal">
+                                          {g.companions.map((comp, compIdx) => (
+                                            <li key={compIdx}>
+                                              {comp} <span className="text-[8px] text-zinc-400 italic">(Acomp.)</span>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      )}
+                                    </li>
+                                  ))
+                                ) : (
+                                  <li className="list-none text-zinc-400 text-[10px] italic pl-0">
+                                    Mesa vacía / Sin invitados asignados.
+                                  </li>
+                                )}
+                              </ol>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      /* Lista de Invitados Preview Layout */
+                      <div className="space-y-4">
+                        {tables.map((t) => {
+                          const tableGuestsData = t.guests.map((gName) => {
+                            const guestObj = allGuests.find(guest => `${guest.firstName} ${guest.lastName}` === gName);
+                            const companions = guestObj?.companions || [];
+                            const quota = guestObj ? guestObj.quota : 1;
+                            const status = guestObj ? guestObj.status : "Pendiente";
+                            return { name: gName, companions, quota, status };
+                          });
+                          const occupied = tableGuestsData.reduce((sum, g) => sum + g.quota, 0);
+
+                          return (
+                            <div key={t.id} className="border border-zinc-200 rounded-sm overflow-hidden shadow-xs bg-white text-zinc-900">
+                              <div className="bg-zinc-50 border-b border-zinc-200 px-3 py-2 flex justify-between items-center">
+                                <h4 className="font-sans text-xs font-bold text-zinc-800">
+                                  MESA {t.number}: {t.name.toUpperCase()}
+                                </h4>
+                                <span className="text-[10px] text-zinc-500 font-semibold">
+                                  Cupos: {occupied} / {t.capacity}
+                                </span>
+                              </div>
+                              <div className="p-3">
+                                {tableGuestsData.length > 0 ? (
+                                  <table className="w-full text-[10px] text-left">
+                                    <thead>
+                                      <tr className="text-zinc-500 border-b border-zinc-100 text-[9px] font-bold">
+                                        <th className="pb-1.5">Invitado & Acompañantes</th>
+                                        <th className="pb-1.5">Estado</th>
+                                        <th className="pb-1.5 text-right">Cupos</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-zinc-50">
+                                      {tableGuestsData.map((g, gIdx) => (
+                                        <React.Fragment key={gIdx}>
+                                          <tr>
+                                            <td className="py-1.5 font-medium text-zinc-900">
+                                              {gIdx + 1}. {g.name}
+                                            </td>
+                                            <td className="py-1.5">
+                                              <span className={`px-1.5 py-0.5 rounded-xs text-[8px] font-bold ${
+                                                g.status === "Confirmado"
+                                                  ? "bg-green-55 bg-opacity-20 text-green-700 bg-green-50"
+                                                  : g.status === "Pendiente"
+                                                    ? "bg-amber-55 bg-opacity-20 text-amber-700 bg-amber-50"
+                                                    : "bg-red-55 bg-opacity-20 text-red-700 bg-red-50"
+                                              }`}>
+                                                {g.status.toUpperCase()}
+                                              </span>
+                                            </td>
+                                            <td className="py-1.5 text-right font-mono text-zinc-700">{g.quota}</td>
+                                          </tr>
+                                          {g.companions.map((comp, cIdx) => (
+                                            <tr key={cIdx} className="text-zinc-500 text-[9px]">
+                                              <td className="pl-4 py-0.5 flex items-center gap-1">
+                                                <span className="w-1 h-1 rounded-full bg-gold-400 shrink-0" />
+                                                <span>{comp}</span>
+                                              </td>
+                                              <td className="py-0.5 italic text-zinc-400">Acompañante</td>
+                                              <td className="py-0.5 text-right">-</td>
+                                            </tr>
+                                          ))}
+                                        </React.Fragment>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                ) : (
+                                  <p className="text-zinc-400 text-[10px] italic text-center py-2">
+                                    Mesa vacía / Sin invitados asignados.
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Summary Row */}
+                    <div className="mt-6 pt-4 border-t-2 border-zinc-900 flex justify-between text-[9px] text-zinc-500 font-sans font-bold uppercase tracking-wider">
+                      <span>Total Mesas: {tables.length}</span>
+                      <span>Total Asignados: {tables.reduce((sum, tableItem) => {
+                        return sum + tableItem.guests.reduce((s, gName) => {
+                          const g = allGuests.find(guest => `${guest.firstName} ${guest.lastName}` === gName);
+                          return s + (g ? g.quota : 1);
+                        }, 0);
+                      }, 0)}</span>
+                      <span>Aforo: {tables.reduce((sum, t) => sum + (t.capacity || 10), 0)}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
