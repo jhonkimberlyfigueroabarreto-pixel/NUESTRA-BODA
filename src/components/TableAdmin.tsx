@@ -23,6 +23,7 @@ import {
   FileSpreadsheet
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { jsPDF } from "jspdf";
 import { Table, AdminGuest } from "../types";
 import { TABLES_DATA } from "../data";
 import { getGuests, addGuest, updateGuest, getTables, saveTables } from "../lib/firestoreService";
@@ -54,6 +55,8 @@ export default function TableAdmin() {
 
   // Print Preview Modal state
   const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
+  const [printError, setPrintError] = useState<string | null>(null);
 
   // =========================================================================
   // INITIALIZATION & LIFECYCLE
@@ -370,13 +373,245 @@ export default function TableAdmin() {
   };
 
   // =========================================================================
-  // PRINT PREVIEW TRIGGER
+  // PRINT PREVIEW TRIGGER & PDF GENERATION (JSPDF)
   // =========================================================================
   const triggerPrint = () => {
-    setIsPrintPreviewOpen(false);
-    setTimeout(() => {
+    setPrintError(null);
+    try {
       window.print();
-    }, 300);
+    } catch (err: any) {
+      console.error("Error during browser print:", err);
+      setPrintError(
+        "No se pudo abrir el menú de impresión del navegador (esto es común debido a políticas de seguridad del iframe). Por favor, use el botón 'Descargar PDF' que funciona perfectamente en cualquier entorno."
+      );
+    }
+  };
+
+  const generatePDF = async () => {
+    setIsExportingPDF(true);
+    setPrintError(null);
+    try {
+      // Create PDF in A4 format (210mm x 297mm)
+      const doc = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
+
+      // Helper to add clean headers and footers to pages
+      const drawHeader = (pageNumber: number) => {
+        // Dark top header background
+        doc.setFillColor(24, 24, 27); // zinc-900
+        doc.rect(0, 0, 210, 35, "F");
+
+        // Thin elegant gold border line
+        doc.setFillColor(197, 160, 89); // gold-500
+        doc.rect(0, 0, 210, 2.5, "F");
+
+        // Subtitle / Label
+        doc.setTextColor(212, 175, 55); // gold-400
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8.5);
+        doc.text("BODA DE KIMBERLY & JHON", 105, 11, { align: "center", charSpace: 3 });
+
+        // Main Title
+        doc.setTextColor(255, 255, 255);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(14);
+        doc.text("PLANO DE DISTRIBUCIÓN DE MESAS", 105, 20, { align: "center" });
+
+        // Date / Venue
+        doc.setTextColor(161, 161, 170); // zinc-400
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(8.5);
+        doc.text("Gala Oficial • 1 de Agosto de 2026 • Casona del Prado", 105, 27, { align: "center" });
+
+        // Footer Page Numbering
+        doc.setTextColor(113, 113, 122); // zinc-500
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.text(`Documento Oficial de Organización  |  Página ${pageNumber}`, 105, 287, { align: "center" });
+      };
+
+      let pageCount = 1;
+      drawHeader(pageCount);
+
+      let y = 45; // Starting top coordinate for content
+
+      for (let i = 0; i < tables.length; i++) {
+        const t = tables[i];
+
+        // Retrieve guests & their companion lists for this table
+        const tableGuestsData = t.guests.map((gName) => {
+          const guestObj = allGuests.find(guest => `${guest.firstName} ${guest.lastName}` === gName);
+          const companions = guestObj?.companions || [];
+          const quota = guestObj ? guestObj.quota : 1;
+          return { name: gName, companions, quota };
+        });
+
+        const totalCompanions = tableGuestsData.reduce((sum, g) => sum + g.companions.length, 0);
+        const occupied = tableGuestsData.reduce((sum, g) => {
+          // If the guest is assigned but we can't find them, we count at least 1
+          return sum + g.quota;
+        }, 0);
+        const capacity = t.capacity || 10;
+        const available = Math.max(0, capacity - occupied);
+
+        // Calculate dynamic height of this table card block
+        // Base padding/header/stats is ~20mm. Each guest row is 6mm, each companion row is 5mm
+        const blockHeight = 22 + (tableGuestsData.length * 6.5) + (totalCompanions * 5);
+
+        // Page break checker (avoid orphaned content near the bottom)
+        if (y + blockHeight > 270) {
+          doc.addPage();
+          pageCount++;
+          drawHeader(pageCount);
+          y = 45;
+        }
+
+        // Draw Table Card rounded container
+        doc.setDrawColor(228, 228, 231); // zinc-200
+        doc.setFillColor(252, 252, 253); // zinc-50 / super light gray
+        doc.roundedRect(15, y, 180, blockHeight, 2, 2, "FD");
+
+        // Draw Left elegant gold border tag
+        doc.setFillColor(197, 160, 89); // gold-500
+        doc.rect(15, y, 2.2, blockHeight, "F");
+
+        // Table Title text
+        doc.setTextColor(24, 24, 27); // zinc-900
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
+        doc.text(`Mesa ${t.number}: ${t.name}`, 22, y + 8);
+
+        // Table Description if exists
+        if (t.description) {
+          doc.setTextColor(113, 113, 122); // zinc-505
+          doc.setFont("helvetica", "italic");
+          doc.setFontSize(8.5);
+          const desc = t.description.length > 70 ? t.description.substring(0, 67) + "..." : t.description;
+          doc.text(desc, 22, y + 13.5);
+        }
+
+        // Stats Badge (aligned to the right side of the card)
+        doc.setDrawColor(197, 160, 89); // gold-300
+        doc.setFillColor(253, 250, 242); // gold-50 / cream
+        doc.roundedRect(110, y + 3, 80, 12, 1, 1, "FD");
+
+        doc.setTextColor(120, 90, 40); // gold-800
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.text(`Aforo: ${capacity}  |  Ocupados: ${occupied}  |  Disponibles: ${available}`, 113, y + 10.5);
+
+        // Thin separating line below table card header
+        doc.setDrawColor(244, 244, 245); // zinc-100
+        doc.line(15, y + 17.5, 195, y + 17.5);
+
+        // Draw list of seated individuals
+        let currentY = y + 23.5;
+        if (tableGuestsData.length === 0) {
+          doc.setTextColor(161, 161, 170); // zinc-400
+          doc.setFont("helvetica", "italic");
+          doc.setFontSize(9);
+          doc.text("Mesa vacía / Sin invitados asignados.", 25, currentY);
+        } else {
+          tableGuestsData.forEach((g, gIdx) => {
+            // Index
+            doc.setTextColor(113, 113, 122); // zinc-500
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(9);
+            doc.text(`${gIdx + 1}.`, 23, currentY);
+
+            // Principal Guest Name
+            doc.setTextColor(24, 24, 27); // zinc-900
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(9.5);
+            doc.text(g.name, 28, currentY);
+
+            // If guest has custom quota showing
+            if (g.quota > 1) {
+              doc.setTextColor(197, 160, 89); // gold-500
+              doc.setFont("helvetica", "bold");
+              doc.setFontSize(7.5);
+              doc.text(`(${g.quota} cupos asignados)`, 105, currentY);
+            }
+
+            currentY += 6.5;
+
+            // Render companions
+            g.companions.forEach((comp) => {
+              // Companion elegant bullet
+              doc.setFillColor(197, 160, 89); // gold-500
+              doc.circle(34, currentY - 1.2, 0.7, "F");
+
+              // Companion Name
+              doc.setTextColor(63, 63, 70); // zinc-700
+              doc.setFont("helvetica", "normal");
+              doc.setFontSize(9);
+              doc.text(comp, 38, currentY);
+
+              // Indicator tag
+              doc.setTextColor(161, 161, 170); // zinc-400
+              doc.setFont("helvetica", "italic");
+              doc.setFontSize(8);
+              doc.text("(Acompañante)", 105, currentY);
+
+              currentY += 5;
+            });
+          });
+        }
+
+        // Add bottom spacing before drawing the next table block
+        y += blockHeight + 6;
+      }
+
+      // Add general summary stats at the end of document
+      const summaryHeight = 26;
+      if (y + summaryHeight > 270) {
+        doc.addPage();
+        pageCount++;
+        drawHeader(pageCount);
+        y = 45;
+      }
+
+      // Render summary card container
+      doc.setFillColor(24, 24, 27); // zinc-900
+      doc.roundedRect(15, y, 180, summaryHeight, 1.5, 1.5, "F");
+
+      // Small golden header bar for summary
+      doc.setFillColor(197, 160, 89); // gold-500
+      doc.rect(15, y, 180, 1.5, "F");
+
+      const totalTables = tables.length;
+      const grandTotalOccupied = tables.reduce((sum, tableItem) => {
+        return sum + tableItem.guests.reduce((s, gName) => {
+          const g = allGuests.find(guest => `${guest.firstName} ${guest.lastName}` === gName);
+          return s + (g ? g.quota : 1);
+        }, 0);
+      }, 0);
+      const grandTotalCapacity = tables.reduce((sum, t) => sum + (t.capacity || 10), 0);
+      const grandTotalAvailable = Math.max(0, grandTotalCapacity - grandTotalOccupied);
+
+      doc.setTextColor(212, 175, 55); // gold-400
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.text("RESUMEN DE DISTRIBUCIÓN GENERAL", 25, y + 8);
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9.5);
+      doc.text(`Total Mesas: ${totalTables}`, 25, y + 17);
+      doc.text(`Total Asientos Ocupados: ${grandTotalOccupied}`, 80, y + 17);
+      doc.text(`Asientos Disponibles: ${grandTotalAvailable} / ${grandTotalCapacity}`, 140, y + 17);
+
+      // Trigger standard download in browser
+      doc.save("Plano_Mesas_Boda_Kimberly_Jhon.pdf");
+    } catch (err: any) {
+      console.error("Error during PDF generation:", err);
+      setPrintError(err?.message || "Ocurrió un error inesperado al intentar construir el archivo PDF.");
+    } finally {
+      setIsExportingPDF(false);
+    }
   };
 
   // Filtered guest bank list based on search and selected tab
@@ -1000,22 +1235,44 @@ export default function TableAdmin() {
                   </p>
                 </div>
                 
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <button
-                    onClick={triggerPrint}
-                    className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-bold uppercase tracking-widest flex items-center gap-1.5 cursor-pointer rounded-xs"
+                    onClick={generatePDF}
+                    disabled={isExportingPDF}
+                    className="px-4 py-2 bg-gold-500 hover:bg-gold-600 disabled:bg-zinc-300 text-zinc-950 text-xs font-bold uppercase tracking-widest flex items-center gap-1.5 cursor-pointer rounded-xs transition-all shadow-sm"
                   >
-                    <Printer className="w-4 h-4" />
-                    <span>Imprimir Plano</span>
+                    <FileSpreadsheet className="w-4 h-4" />
+                    <span>{isExportingPDF ? "Generando PDF..." : "Descargar PDF (Recomendado)"}</span>
                   </button>
                   <button
-                    onClick={() => setIsPrintPreviewOpen(false)}
-                    className="px-4 py-2 border border-zinc-300 hover:border-zinc-400 text-zinc-600 text-xs font-bold uppercase tracking-widest cursor-pointer rounded-xs"
+                    onClick={triggerPrint}
+                    className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-bold uppercase tracking-widest flex items-center gap-1.5 cursor-pointer rounded-xs transition-all"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>Imprimir Navegador</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsPrintPreviewOpen(false);
+                      setPrintError(null);
+                    }}
+                    className="px-4 py-2 border border-zinc-300 hover:border-zinc-400 text-zinc-600 text-xs font-bold uppercase tracking-widest cursor-pointer rounded-xs transition-all"
                   >
                     Cerrar Vista Previa
                   </button>
                 </div>
               </div>
+
+              {/* Error display if any */}
+              {printError && (
+                <div className="mb-4 p-3.5 bg-red-50 border-l-4 border-red-500 text-red-800 text-xs font-sans rounded-sm flex items-start gap-2.5">
+                  <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold">Error de impresión/exportación:</p>
+                    <p className="mt-0.5 text-red-700">{printError}</p>
+                  </div>
+                </div>
+              )}
 
               {/* PRINTABLE PREVIEW CONTENT CONTAINER */}
               <div className="flex-1 bg-white p-6 border border-zinc-200 rounded-sm overflow-y-auto max-h-[55vh]">
