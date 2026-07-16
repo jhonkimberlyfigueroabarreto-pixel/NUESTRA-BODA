@@ -52,12 +52,32 @@
         }
       },
       "required": ["id", "firstName", "lastName", "quota", "status", "code"]
+    },
+    "WeddingSettings": {
+      "title": "WeddingSettings",
+      "description": "Global wedding configuration settings including countdown, bank info and background music.",
+      "type": "object",
+      "properties": {
+        "countdownTitle": { "type": "string" },
+        "countdownDate": { "type": "string" },
+        "countdownDateFormatted": { "type": "string" },
+        "customCoverImage": { "type": "string" },
+        "musicEnabled": { "type": "boolean" },
+        "musicUrl": { "type": "string" },
+        "musicTitle": { "type": "string" },
+        "musicVolume": { "type": "number" },
+        "showWelcomeScreen": { "type": "boolean" }
+      }
     }
   },
   "firestore": {
     "/guests/{guestId}": {
       "schema": "Guest",
       "description": "Collection of wedding guests and RSVPs."
+    },
+    "/config/wedding_settings": {
+      "schema": "WeddingSettings",
+      "description": "Document storing global wedding settings."
     }
   }
 }

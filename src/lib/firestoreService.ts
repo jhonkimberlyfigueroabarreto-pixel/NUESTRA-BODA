@@ -383,6 +383,11 @@ export interface WeddingSettings {
     phone: string;
     message: string;
   }[];
+  musicEnabled?: boolean;
+  musicUrl?: string;
+  musicTitle?: string;
+  musicVolume?: number;
+  showWelcomeScreen?: boolean;
 }
 
 const DEFAULT_SETTINGS: WeddingSettings = {
@@ -410,7 +415,12 @@ const DEFAULT_SETTINGS: WeddingSettings = {
       phone: "+57 320 456 7890",
       message: "Estimada Mariana, tengo una pregunta sobre la organización o el protocolo...",
     }
-  ]
+  ],
+  musicEnabled: true,
+  musicUrl: "https://assets.mixkit.co/music/preview/mixkit-romantic-forest-walk-2144.mp3",
+  musicTitle: "Romantic Forest Walk (Instrumental)",
+  musicVolume: 0.5,
+  showWelcomeScreen: true
 };
 
 export async function getWeddingSettings(): Promise<WeddingSettings> {

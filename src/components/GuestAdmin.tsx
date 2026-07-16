@@ -2196,6 +2196,13 @@ function InformacionAdmin() {
   const [countdownDate, setCountdownDate] = useState("2026-08-01T19:00:00");
   const [countdownFormatted, setCountdownFormatted] = useState("1 de Agosto de 2026");
 
+  // Background Music configuration states
+  const [musicEnabled, setMusicEnabled] = useState(true);
+  const [musicUrl, setMusicUrl] = useState("https://assets.mixkit.co/music/preview/mixkit-romantic-forest-walk-2144.mp3");
+  const [musicTitle, setMusicTitle] = useState("Romantic Forest Walk (Instrumental)");
+  const [musicVolume, setMusicVolume] = useState(0.5);
+  const [showWelcomeScreen, setShowWelcomeScreen] = useState(true);
+
   useEffect(() => {
     const fetchSettings = async () => {
       try {
@@ -2206,6 +2213,11 @@ function InformacionAdmin() {
           if (settings.countdownTitle) setCountdownTitle(settings.countdownTitle);
           if (settings.countdownDate) setCountdownDate(settings.countdownDate);
           if (settings.countdownDateFormatted) setCountdownFormatted(settings.countdownDateFormatted);
+          if (settings.musicEnabled !== undefined) setMusicEnabled(settings.musicEnabled);
+          if (settings.musicUrl !== undefined) setMusicUrl(settings.musicUrl);
+          if (settings.musicTitle !== undefined) setMusicTitle(settings.musicTitle);
+          if (settings.musicVolume !== undefined) setMusicVolume(settings.musicVolume);
+          if (settings.showWelcomeScreen !== undefined) setShowWelcomeScreen(settings.showWelcomeScreen);
         }
       } catch (err) {
         console.error("Error fetching settings in admin panel:", err);
@@ -2251,6 +2263,23 @@ function InformacionAdmin() {
     } catch (err) {
       console.error("Error saving countdown configuration to Firestore:", err);
       alert("Error al guardar la configuración de la cuenta regresiva.");
+    }
+  };
+
+  const handleSaveMusic = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await saveWeddingSettings({
+        musicEnabled,
+        musicUrl,
+        musicTitle,
+        musicVolume,
+        showWelcomeScreen,
+      });
+      alert("¡Configuración de música de fondo guardada con éxito!");
+    } catch (err) {
+      console.error("Error saving music configuration to Firestore:", err);
+      alert("Error al guardar la configuración de música.");
     }
   };
 
@@ -2476,6 +2505,108 @@ function InformacionAdmin() {
             className="px-5 py-2 bg-gold-500 hover:bg-gold-600 text-zinc-950 uppercase text-[10px] font-bold tracking-widest rounded-sm cursor-pointer transition-all"
           >
             Guardar Fecha y Cuenta Regresiva
+          </button>
+        </div>
+      </form>
+
+      {/* BACKGROUND MUSIC CONFIGURATION FORM */}
+      <form onSubmit={handleSaveMusic} className="bg-zinc-900/60 border border-zinc-800 p-6 rounded-sm space-y-4 max-w-2xl mx-auto mt-8">
+        <h5 className="font-serif text-base text-gold-400 font-semibold border-b border-zinc-800 pb-2 flex items-center gap-2">
+          <Music className="w-4 h-4 text-gold-500" />
+          <span>Configuración de Música de Fondo & Bienvenida</span>
+        </h5>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Active status */}
+          <div className="flex items-center justify-between p-3.5 bg-zinc-950 rounded-sm border border-zinc-800 md:col-span-2">
+            <div>
+              <span className="text-xs font-bold text-zinc-200 block">Activar Música de Fondo</span>
+              <p className="text-[10px] text-zinc-400">Habilita la reproducción de música en el reproductor flotante.</p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input 
+                type="checkbox" 
+                checked={musicEnabled} 
+                onChange={(e) => setMusicEnabled(e.target.checked)}
+                className="sr-only peer" 
+              />
+              <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-400 peer-checked:after:bg-gold-500 after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gold-500/20"></div>
+            </label>
+          </div>
+
+          {/* Show Welcome screen */}
+          <div className="flex items-center justify-between p-3.5 bg-zinc-950 rounded-sm border border-zinc-800 md:col-span-2">
+            <div>
+              <span className="text-xs font-bold text-zinc-200 block font-sans">Mostrar Pantalla de Bienvenida</span>
+              <p className="text-[10px] text-zinc-400">Activa el saludo elegante inicial con botones para entrar con o sin música.</p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input 
+                type="checkbox" 
+                checked={showWelcomeScreen} 
+                onChange={(e) => setShowWelcomeScreen(e.target.checked)}
+                className="sr-only peer" 
+              />
+              <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-400 peer-checked:after:bg-gold-500 after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gold-500/20"></div>
+            </label>
+          </div>
+
+          {/* Song Title */}
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase text-zinc-400 font-bold block">Título de la Canción</label>
+            <input
+              type="text"
+              placeholder="Ej: Solo de Piano Romántico"
+              value={musicTitle}
+              onChange={(e) => setMusicTitle(e.target.value)}
+              className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+              required={musicEnabled}
+              disabled={!musicEnabled}
+            />
+          </div>
+
+          {/* Default Volume */}
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase text-zinc-400 font-bold block">Volumen Predeterminado ({Math.round(musicVolume * 100)}%)</label>
+            <div className="flex items-center gap-2 h-9">
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={musicVolume}
+                onChange={(e) => setMusicVolume(parseFloat(e.target.value))}
+                className="w-full bg-zinc-850 accent-gold-500 h-1 rounded-lg cursor-pointer"
+                disabled={!musicEnabled}
+              />
+            </div>
+          </div>
+
+          {/* Song URL */}
+          <div className="space-y-1 md:col-span-2">
+            <label className="text-[10px] uppercase text-zinc-400 font-bold block">Enlace de la Canción (Archivo MP3 público)</label>
+            <input
+              type="url"
+              placeholder="Ej: https://miservidor.com/musica.mp3"
+              value={musicUrl}
+              onChange={(e) => setMusicUrl(e.target.value)}
+              className="w-full bg-zinc-950 border border-zinc-800 p-2 text-xs rounded-sm text-zinc-100 focus:border-gold-500 outline-none"
+              required={musicEnabled}
+              disabled={!musicEnabled}
+            />
+            <p className="text-[9px] text-zinc-500 mt-1">
+              Asegúrate de que sea un enlace directo a un archivo de audio MP3 alojado públicamente con HTTPS y sin bloqueos de origen (CORS).
+            </p>
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-2">
+          <button
+            type="submit"
+            className="px-5 py-2 bg-gold-500 hover:bg-gold-600 text-zinc-950 uppercase text-[10px] font-bold tracking-widest rounded-sm cursor-pointer transition-all flex items-center gap-1.5"
+          >
+            <Music className="w-3.5 h-3.5" />
+            <span>Guardar Configuración de Música</span>
           </button>
         </div>
       </form>

@@ -17,6 +17,7 @@ import PhotoSharing from "./components/PhotoSharing";
 import Guestbook from "./components/Guestbook";
 import Contact from "./components/Contact";
 import GuestAdmin from "./components/GuestAdmin";
+import BackgroundMusic from "./components/BackgroundMusic";
 
 export default function App() {
   const [activeSection, setActiveSection] = useState("inicio");
@@ -119,6 +120,9 @@ export default function App() {
         {/* Exclusive Guest & Seat Administration Panel */}
         <GuestAdmin />
       </main>
+
+      {/* Global Background Music with welcome screen and player controls */}
+      <BackgroundMusic />
     </div>
   );
 }
